@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { help } from "@/components/lone/help";
 import { ActionButton, NavLink, StatusPill, TextField, TopBar } from "@/components/lone/chrome";
 import { ageLabel, deviceId, freshCode, isLive, normalizeTeamCode, validTeamCode, type BoardPerson } from "@/lib/lone/board";
-import { leaveBoard, publishPresence, readBoard } from "@/lib/lone/board-api";
+import { leaveBoard, publishPresence, readBoard, readVisits } from "@/lib/lone/board-api";
+import { currentVisit } from "@/lib/lone/visit-sync";
+import { visitLine, type VisitRecord } from "@/lib/lone/visits";
 import { mapsHref } from "@/lib/lone/model";
 import { useLone } from "@/lib/lone/store";
 
@@ -13,6 +15,7 @@ export function BoardScreen() {
   const joined = validTeamCode(code);
   const [draft, setDraft] = useState("");
   const [people, setPeople] = useState<BoardPerson[]>([]);
+  const [visits, setVisits] = useState<VisitRecord[]>([]);
   const [problem, setProblem] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [self, setSelf] = useState("");
@@ -38,12 +41,14 @@ export function BoardScreen() {
           lat: state.lastFix?.lat ?? null,
           lng: state.lastFix?.lng ?? null,
           accuracy: state.lastFix?.accuracy ?? null,
+          ...currentVisit(state.jobs, state.welfare),
         },
       })
-        .then(() => readBoard({ data: { team: code } }))
-        .then((rows) => {
+        .then(() => Promise.all([readBoard({ data: { team: code } }), readVisits({ data: { team: code } })]))
+        .then(([rows, history]) => {
           if (!live) return;
           setPeople(rows);
+          setVisits(history);
           setProblem("");
         })
         .catch(() => {
@@ -135,10 +140,17 @@ export function BoardScreen() {
                         </StatusPill>
                       </div>
                     ) : null}
-                    <p className="mt-2 text-sm text-muted">
-                      {person.device === self ? "This phone" : "Another phone"}
-                      {person.job ? ` · ${person.job}` : " · No job open"}
-                    </p>
+                    {(() => {
+                      const line = visitLine(person, person.job, now);
+                      const colour =
+                        line.tone === "ok" ? "text-ok" : line.tone === "amber" ? "text-amber" : "text-muted";
+                      return (
+                        <p className={`mt-2 text-sm ${colour}`}>
+                          {line.text}
+                          {person.device === self ? " · this phone" : ""}
+                        </p>
+                      );
+                    })()}
                     {person.alertNote ? <p className="mt-2 text-sm text-fg">{person.alertNote}</p> : null}
                     {map ? (
                       <a
@@ -158,6 +170,44 @@ export function BoardScreen() {
               })}
             </ul>
           )}
+          <section className="mt-6">
+            <h2 className="text-base font-bold text-fg">Visits in the last 24 hours</h2>
+            {visits.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">None yet.</p>
+            ) : (
+              <ul className="mt-2 grid gap-2">
+                {visits.map((visit) => {
+                  const t = (iso: string | null) =>
+                    iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
+                  const status = visit.endedAt
+                    ? `Ended ${t(visit.endedAt)}${visit.outcome ? ` · ${visit.outcome}` : ""}`
+                    : visit.checkedInAt
+                      ? `Checked in safe ${t(visit.checkedInAt)}`
+                      : visit.dueAt && new Date(visit.dueAt).getTime() < now
+                        ? `Overdue since ${t(visit.dueAt)}`
+                        : visit.dueAt
+                          ? `On a visit · due ${t(visit.dueAt)}`
+                          : visit.arrivedAt
+                            ? `On a visit since ${t(visit.arrivedAt)}`
+                            : `Travelling since ${t(visit.startedAt)}`;
+                  const tone = visit.endedAt
+                    ? "text-muted"
+                    : visit.checkedInAt
+                      ? "text-ok"
+                      : visit.dueAt && new Date(visit.dueAt).getTime() < now
+                        ? "text-amber"
+                        : "text-fg";
+                  return (
+                    <li key={visit.id} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+                      <span className="font-bold text-fg">{visit.name}</span>
+                      <span className="text-muted"> · {visit.site || "No site"} · started {t(visit.startedAt)}</span>
+                      <span className={`block ${tone}`}>{status}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
         </>
       ) : (
         <>

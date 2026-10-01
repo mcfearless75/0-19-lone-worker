@@ -2,7 +2,8 @@
 export const help = {
   home: [
     "Red alert: press and hold the red button for 1.5 seconds, then let go. Straight away your duty mobiles get a WhatsApp and your alert emails get an email, with your location on a map and the nearest postcode.",
-    "Start a job: say where you are going and set a welfare timer. If the timer runs out and you have not ended the job, your duty mobiles and alert emails are messaged automatically, as long as the app is open.",
+    "Start a job: say where you are going and set a welfare timer. By default the timer starts when you press Arrived. The team sees you on the Board as travelling, on a visit, checked in safe, or overdue.",
+    "I'm safe: press it when you are done and safe. It stops the timer and the whole team sees 'Checked in safe' with the time. End job when you leave.",
     "Amber note: before something risky, say or type what you are walking into. If you raise an alert in the next 12 hours, the note goes with it.",
     "While a job is open the screen stays awake. If the phone does lock, the Red alert button needs the app reopened, but a welfare timer still fires: the server holds it and raises the alarm itself.",
     "Desk shows the log kept on this phone. Board shows your team's live positions. Routes is where you set who gets your alerts.",
@@ -30,7 +31,8 @@ export const help = {
     "Acknowledge marks an alert as seen. Resolve closes it with a note of what happened.",
   ],
   board: [
-    "The Board shows everyone on your team, with their last position and any open alert.",
+    "The Board shows everyone on your team: where they are, whether they are travelling, on a visit (with the due-back time), checked in safe, or overdue, plus any open alert.",
+    "Below the pins is every visit from the last 24 hours, so a supervisor can see who went where and whether they checked in.",
     "Everyone on the team types the same board code (4 to 8 letters or numbers). Anyone with the code can see the pins, so keep it to your team.",
     "A pin is live while that person has the app open and updates every 45 seconds. If their phone locks, the pin stays, greyed out, with when they were last seen. People drop off the board after 12 hours.",
   ],
@@ -39,6 +41,7 @@ export const help = {
     "Duty mobiles: up to 8 numbers that get a WhatsApp the moment you raise an alert. Each person must have joined the WhatsApp service first (ask your manager for the join message).",
     "Alert emails: up to 8 addresses, separated by commas. Each one gets an email at the same moment, with any voice notes attached.",
     "WhatsApp group link only opens the group on your phone. It cannot post into the group by itself. The duty mobiles are what actually gets messaged.",
+    "WhatsApp on check-in: off by default, because the Board already shows every check-in and a message per visit soon gets ignored. Turn it on if your team wants one.",
     "Discreet screen: after an alert, the phone shows a plain screen so nobody nearby can see that an alert went out.",
   ],
 } as const;

@@ -31,10 +31,14 @@ type LoneState = {
     client: string;
     note: string;
     minutes: number | null;
+    /** Start the welfare timer when the worker presses Arrived, not now. */
+    onArrival?: boolean;
     lat?: number | null;
     lng?: number | null;
   }) => Job;
   endJob: (jobId: string, outcome: string) => void;
+  /** Worker has arrived: start the welfare timer now (jobs started "timer on arrival"). */
+  arrive: (jobId: string) => void;
   extendWelfare: (jobId: string, minutes: number) => void;
   checkIn: (jobId: string) => void;
   markWelfareOnServer: (welfareId: string) => void;
@@ -110,7 +114,8 @@ export const useLone = create<LoneState>()(
         const ref = `LW-${String(profile.nextRef).padStart(4, "0")}`;
         const now = new Date().toISOString();
         const fix = get().lastFix;
-        const minutes = input.minutes;
+        const minutes = input.minutes != null && input.minutes > 0 ? input.minutes : null;
+        const onArrival = Boolean(input.onArrival && minutes);
         const job: Job = {
           id: uid(),
           ref,
@@ -121,10 +126,9 @@ export const useLone = create<LoneState>()(
           client: input.client.trim(),
           note: input.note.trim(),
           startedAt: now,
-          dueAt:
-            minutes != null && minutes > 0
-              ? new Date(Date.now() + minutes * 60_000).toISOString()
-              : null,
+          arrivedAt: onArrival ? null : now,
+          timerMinutes: minutes,
+          dueAt: minutes && !onArrival ? new Date(Date.now() + minutes * 60_000).toISOString() : null,
           endedAt: null,
           status: "active",
           outcome: "",
@@ -158,7 +162,9 @@ export const useLone = create<LoneState>()(
                       hour: "2-digit",
                       minute: "2-digit",
                     })}`
-                  : ""
+                  : onArrival
+                    ? ` · ${minutes} min timer starts on arrival`
+                    : ""
               }`,
               "job_started",
               job.id,
@@ -167,6 +173,45 @@ export const useLone = create<LoneState>()(
           ],
         }));
         return job;
+      },
+
+      arrive: (jobId) => {
+        const now = new Date().toISOString();
+        set((state) => {
+          const job = state.jobs.find((entry) => entry.id === jobId);
+          if (!job || job.status !== "active" || job.arrivedAt !== null) return state;
+          const dueAt = job.timerMinutes ? new Date(Date.now() + job.timerMinutes * 60_000).toISOString() : null;
+          const fix = state.lastFix;
+          const welfare: Welfare | null = dueAt
+            ? {
+                id: uid(),
+                sample: false,
+                jobId: job.id,
+                note: job.note,
+                startedAt: now,
+                expiresAt: dueAt,
+                status: "running",
+                lat: fix?.lat ?? job.lat,
+                lng: fix?.lng ?? job.lng,
+              }
+            : null;
+          return {
+            jobs: state.jobs.map((entry) =>
+              entry.id === jobId
+                ? { ...entry, arrivedAt: now, dueAt, lat: fix?.lat ?? entry.lat, lng: fix?.lng ?? entry.lng }
+                : entry,
+            ),
+            welfare: welfare ? [welfare, ...state.welfare] : state.welfare,
+            events: [
+              event(
+                `Arrived at ${job.site}${dueAt ? ` · due ${new Date(dueAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}`,
+                "arrived",
+                job.id,
+              ),
+              ...state.events,
+            ],
+          };
+        });
       },
 
       endJob: (jobId, outcome) => {

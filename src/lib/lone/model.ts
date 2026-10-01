@@ -16,6 +16,8 @@ export type Profile = {
   nextRef: number;
   teamCode: string;
   alertPhones: string;
+  /** Also WhatsApp the duty mobiles when the worker checks in safe. Off by default. */
+  notifyOnCheckIn: boolean;
 };
 
 export type Fix = {
@@ -35,6 +37,10 @@ export type Job = {
   client: string;
   note: string;
   startedAt: string;
+  /** When the worker pressed Arrived; null while still travelling. */
+  arrivedAt: string | null;
+  /** Timer length chosen at start; used when the timer begins on arrival. */
+  timerMinutes: number | null;
   dueAt: string | null;
   endedAt: string | null;
   status: "active" | "complete";
@@ -116,6 +122,7 @@ export const defaultProfile: Profile = {
   nextRef: 1,
   teamCode: "",
   alertPhones: "",
+  notifyOnCheckIn: false,
 };
 
 export function uid(): string {
@@ -398,6 +405,8 @@ export function exampleShift(now: number): {
     client: "Night lock-up",
     note: "Alarm panel in reception. Leave by the side gate.",
     startedAt: started,
+    arrivedAt: started,
+    timerMinutes: 60,
     dueAt: due,
     endedAt: ended,
     status: "complete",

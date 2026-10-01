@@ -6,6 +6,7 @@ import { defaultProfile, productName } from "@/lib/lone/model";
 import { pushAlert } from "@/lib/lone/raise";
 import { migrateLoneStorage, useLone } from "@/lib/lone/store";
 import { startWelfareSync } from "@/lib/lone/welfare-sync";
+import { currentVisit, startVisitSync } from "@/lib/lone/visit-sync";
 
 export function LoneGate({ children }: { children: ReactNode }) {
   const hydrated = useLone((state) => state.hydrated);
@@ -13,6 +14,10 @@ export function LoneGate({ children }: { children: ReactNode }) {
   const teamCode = useLone((state) => state.profile.teamCode);
   const workerName = useLone((state) => state.profile.workerName);
   const jobSite = useLone((state) => state.jobs.find((job) => job.status === "active")?.site ?? "");
+  const visitKey = useLone((state) => {
+    const v = currentVisit(state.jobs, state.welfare);
+    return `${v.visitState}|${v.dueAt ?? ""}|${v.checkedInAt ?? ""}`;
+  });
 
   useEffect(() => {
     let live = true;
@@ -160,6 +165,7 @@ export function LoneGate({ children }: { children: ReactNode }) {
           lat: state.lastFix?.lat ?? null,
           lng: state.lastFix?.lng ?? null,
           accuracy: state.lastFix?.accuracy ?? null,
+          ...currentVisit(state.jobs, state.welfare),
         },
       }).catch(() => undefined);
     };
@@ -169,7 +175,12 @@ export function LoneGate({ children }: { children: ReactNode }) {
       live = false;
       window.clearInterval(id);
     };
-  }, [hydrated, teamCode, workerName, jobSite]);
+  }, [hydrated, teamCode, workerName, jobSite, visitKey]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    return startVisitSync();
+  }, [hydrated]);
 
   if (!hydrated) {
     return (

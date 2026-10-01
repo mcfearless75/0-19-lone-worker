@@ -172,15 +172,27 @@ export function FieldScreen() {
           <p className="text-sm text-muted">
             {[job.address, job.client].filter(Boolean).join(" · ") || "No address"}
           </p>
-          {timer && dueMs != null ? (
+          {job.arrivedAt === null ? (
+            <p className="mt-3 text-sm text-muted">
+              Travelling. Press Arrived when you get there
+              {job.timerMinutes ? ` to start the ${job.timerMinutes} min timer` : ""}.
+            </p>
+          ) : timer && dueMs != null ? (
             <p className={`mt-3 font-mono text-3xl tabular-nums ${dueMs < 0 ? "text-amber" : "text-fg"}`}>
               {formatRemain(dueMs)}
             </p>
           ) : (
             <p className="mt-3 text-sm text-muted">
-              {checkedIn ? "Checked in. End the job when you leave." : "No welfare timer on this job."}
+              {checkedIn ? "Checked in safe. The team can see it. End the job when you leave." : "No welfare timer on this job."}
             </p>
           )}
+          {job.arrivedAt === null ? (
+            <div className="mt-3">
+              <ActionButton tone="amber" onClick={() => useLone.getState().arrive(job.id)}>
+                Arrived
+              </ActionButton>
+            </div>
+          ) : null}
           <div className="mt-3 grid grid-cols-2 gap-2">
             {timer ? (
               <ActionButton tone="ok" onClick={() => useLone.getState().checkIn(job.id)}>
@@ -341,6 +353,7 @@ function StartJob({ onClose, onStarted }: { onClose: () => void; onStarted: () =
   const [client, setClient] = useState("");
   const [note, setNote] = useState("");
   const [minutes, setMinutes] = useState<number | null>(30);
+  const [onArrival, setOnArrival] = useState(true);
   const [hits, setHits] = useState<AddressHit[]>([]);
   const [checked, setChecked] = useState("");
   const [badPostcode, setBadPostcode] = useState("");
@@ -390,6 +403,7 @@ function StartJob({ onClose, onStarted }: { onClose: () => void; onStarted: () =
           client,
           note,
           minutes,
+          onArrival,
           lat: pin?.lat,
           lng: pin?.lng,
         });
@@ -481,6 +495,26 @@ function StartJob({ onClose, onStarted }: { onClose: () => void; onStarted: () =
           >
             None
           </button>
+        </div>
+        {minutes ? (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setOnArrival(true)}
+              className={`h-11 rounded-lg border text-sm ${onArrival ? "border-fg text-fg" : "border-border text-muted"}`}
+            >
+              Timer starts when I arrive
+            </button>
+            <button
+              type="button"
+              onClick={() => setOnArrival(false)}
+              className={`h-11 rounded-lg border text-sm ${!onArrival ? "border-fg text-fg" : "border-border text-muted"}`}
+            >
+              Timer starts now
+            </button>
+          </div>
+        ) : null}
+        <div>
         </div>
       </div>
       <p className="text-sm text-muted">

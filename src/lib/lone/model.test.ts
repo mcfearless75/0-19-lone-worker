@@ -84,6 +84,8 @@ test("a missed timer opens one welfare alert and does not duplicate it", () => {
     client: "",
     note: "Gate code 4411",
     startedAt: new Date(0).toISOString(),
+    arrivedAt: new Date(0).toISOString(),
+    timerMinutes: 1,
     dueAt: new Date(1_000).toISOString(),
     endedAt: null,
     status: "active",

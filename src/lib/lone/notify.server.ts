@@ -278,6 +278,20 @@ async function overLimit(sql: Sql, device: string, ip: string): Promise<boolean>
   }
 }
 
+/**
+ * A short plain message to the duty mobiles (e.g. "checked in safe"). Via
+ * Twilio when configured, else Meta's template is not suitable, so it is
+ * skipped. Returns how many numbers accepted it.
+ */
+export async function sendTeamNote(sql: Sql, phones: string[], text: string): Promise<number> {
+  if (!twilioConnected()) return 0;
+  const results = await Promise.allSettled(phones.map((to) => twilioWhatsapp(sql, to, text)));
+  results.forEach((r) => {
+    if (r.status === "rejected") console.error("[team-note] send failed:", String(r.reason));
+  });
+  return results.filter((r) => r.status === "fulfilled").length;
+}
+
 type StoredNote = { note: string; at: string; audio: string | null; mime: string };
 
 /** This worker's amber notes from the last 12 hours (newest 3). Never blocks an alert. */

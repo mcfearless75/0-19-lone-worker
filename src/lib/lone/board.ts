@@ -1,4 +1,5 @@
 import { normalizePhone, validEmailList } from "./model.ts";
+import { parseVisitFields, type VisitFields } from "./visits.ts";
 
 export type BoardPerson = {
   device: string;
@@ -11,7 +12,7 @@ export type BoardPerson = {
   alertKind: "" | "red" | "timer";
   alertNote: string;
   alertAt: string | null;
-};
+} & VisitFields;
 
 export type PublishBody = {
   team: string;
@@ -21,7 +22,7 @@ export type PublishBody = {
   lat: number | null;
   lng: number | null;
   accuracy: number | null;
-};
+} & Partial<VisitFields>;
 
 const deviceKey = "lone-worker-device";
 
@@ -88,6 +89,7 @@ export function parsePublish(input: unknown): PublishBody {
     lat: cleanCoord(raw.lat, -90, 90),
     lng: cleanCoord(raw.lng, -180, 180),
     accuracy: cleanCoord(raw.accuracy, 0, 50000),
+    ...parseVisitFields(raw as Record<string, unknown>),
   };
 }
 

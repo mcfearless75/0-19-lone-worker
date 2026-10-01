@@ -220,6 +220,13 @@ export function SettingsScreen() {
       </div>
 
       <Toggle
+        on={profile.notifyOnCheckIn ?? false}
+        label="WhatsApp the duty mobiles when I check in safe"
+        detail="Off by default: the Board already shows every check-in. Turn on if your team wants a message for each one."
+        onChange={(notifyOnCheckIn) => setProfile({ notifyOnCheckIn })}
+      />
+
+      <Toggle
         on={profile.discreet}
         label="Discreet screen after a red alert"
         detail="Shows a clock instead of the alert. Hold the clock to reach send and stand-down. The desk still gets the alert."
