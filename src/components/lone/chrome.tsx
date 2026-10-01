@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type ReactNode, useState } from "react";
 import { deviceId, normalizeTeamCode, validTeamCode } from "@/lib/lone/board";
 import { publishPresence } from "@/lib/lone/board-api";
 import { defaultProfile, productName } from "@/lib/lone/model";
@@ -159,19 +159,45 @@ export function NhsMark({ className = "h-12" }: { className?: string }) {
 export function TopBar({
   title,
   children,
+  help,
 }: {
   title: string;
   children?: ReactNode;
+  /** Paragraphs shown behind the ? button. */
+  help?: readonly string[];
 }) {
   const organisation = useLone((state) => state.profile.organisation);
   const mark = organisation?.trim();
+  const [showHelp, setShowHelp] = useState(false);
   return (
     <header className="flex flex-col gap-6">
       <NhsMark />
-      <div className="min-w-0">
-        {mark ? <p className="truncate text-sm text-muted">{mark}</p> : null}
-        <h1 className="truncate text-2xl font-bold tracking-tight text-blue">{title}</h1>
+      <div className="flex min-w-0 items-end justify-between gap-3">
+        <div className="min-w-0">
+          {mark ? <p className="truncate text-sm text-muted">{mark}</p> : null}
+          <h1 className="truncate text-2xl font-bold tracking-tight text-blue">{title}</h1>
+        </div>
+        {help ? (
+          <button
+            type="button"
+            aria-label={showHelp ? "Hide help" : "Help for this screen"}
+            aria-expanded={showHelp}
+            onClick={() => setShowHelp((open) => !open)}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-blue text-lg font-bold text-blue"
+          >
+            {showHelp ? "×" : "?"}
+          </button>
+        ) : null}
       </div>
+      {help && showHelp ? (
+        <section className="rounded-lg border border-border bg-surface p-4 text-sm leading-relaxed text-fg">
+          {help.map((line) => (
+            <p key={line} className="mt-2 first:mt-0">
+              {line}
+            </p>
+          ))}
+        </section>
+      ) : null}
       {children ? <nav className="flex flex-wrap gap-x-3 gap-y-1">{children}</nav> : null}
     </header>
   );

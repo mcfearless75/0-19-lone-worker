@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { help } from "@/components/lone/help";
 import { ActionButton, NavLink, StatusPill, TextField, TopBar } from "@/components/lone/chrome";
 import { ageLabel, deviceId, freshCode, normalizeTeamCode, validTeamCode, type BoardPerson } from "@/lib/lone/board";
 import { leaveBoard, publishPresence, readBoard } from "@/lib/lone/board-api";
@@ -70,7 +71,7 @@ export function BoardScreen() {
 
   return (
     <div className="safe-pad mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-5 bg-bg">
-      <TopBar title="Board">
+      <TopBar title="Board" help={help.board}>
         <NavLink to="/">Field</NavLink>
         <NavLink to="/desk">Desk</NavLink>
         <NavLink to="/settings">Routes</NavLink>

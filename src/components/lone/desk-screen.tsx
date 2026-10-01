@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { help } from "@/components/lone/help";
 import { ActionButton, NavLink, StatusPill, TopBar, inputClass } from "@/components/lone/chrome";
 import { loadClip } from "@/lib/lone/audio";
 import { alertText, channelHref, launchChannel } from "@/lib/lone/launch";
@@ -64,7 +65,7 @@ export function DeskScreen() {
 
   return (
     <div className="safe-pad mx-auto flex min-h-dvh w-full max-w-5xl flex-col gap-4 bg-bg">
-      <TopBar title="Control desk">
+      <TopBar title="Control desk" help={help.desk}>
         <NavLink to="/">Field</NavLink>
         <NavLink to="/board">Board</NavLink>
         <NavLink to="/settings">Routes</NavLink>
@@ -350,7 +351,7 @@ function NoteCard({ note, job }: { note: AmberNote; job: Job | null }) {
       </p>
       <p className="mt-2 text-sm text-fg">{note.text || "Voice note only"}</p>
       {note.audioId ? (
-        url ? <audio className="mt-3 w-full" controls src={url} /> : <p className="mt-2 text-sm text-faint">Voice note is on the phone that recorded it.</p>
+        url ? <audio className="mt-3 w-full" controls src={url} /> : <p className="mt-2 text-sm text-faint">Voice note is on the phone that recorded it, and goes with any alert raised within 12 hours.</p>
       ) : null}
     </article>
   );

@@ -123,11 +123,23 @@ async function sendWhatsapp(
   return { status: count > 0 ? "sent" : "failed", count };
 }
 
+export type RecentNote = { note: string; at: string; hasAudio: boolean };
+
+function londonTime(iso: string, withDay = true): string {
+  return new Date(iso).toLocaleString("en-GB", {
+    timeZone: "Europe/London",
+    ...(withDay ? { day: "2-digit", month: "short" } : {}),
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 /** Email text is built here from the validated fields, never taken from the client. */
 export function alertEmail(
   data: RaiseBody,
   at: string,
   gpsPostcode: string | null = null,
+  notes: RecentNote[] = [],
 ): { subject: string; text: string } {
   const brand = brandLabel(data.org);
   const title = data.kind === "timer" ? "WELFARE TIMER EXPIRED" : "RED ALERT";
@@ -135,16 +147,20 @@ export function alertEmail(
     `${title} — ${brand}`,
     `Worker: ${data.name}`,
     data.job ? `Job: ${data.job}` : null,
-    `Time: ${new Date(at).toLocaleString("en-GB", {
-      timeZone: "Europe/London",
-      day: "2-digit",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    })}`,
+    `Time: ${londonTime(at)}`,
     `Where: ${data.where}`,
     gpsPostcode ? `Nearest postcode (from GPS): ${gpsPostcode}` : null,
     data.note ? `Note: ${data.note}` : null,
+    ...(notes.length
+      ? [
+          "",
+          "Amber notes before this alert:",
+          ...notes.map(
+            (n) =>
+              `- ${londonTime(n.at, false)}: ${n.note || "(voice only)"}${n.hasAudio ? " [voice note attached to the alert email]" : ""}`,
+          ),
+        ]
+      : []),
     "",
     "Call the worker now and follow your emergency procedure.",
   ]
@@ -153,9 +169,12 @@ export function alertEmail(
   return { subject: `${title}: ${data.name} — ${brand}`, text };
 }
 
+type Attachment = { filename: string; content: string };
+
 async function sendEmails(
   emails: string[],
   message: { subject: string; text: string },
+  attachments: Attachment[] = [],
 ): Promise<Channel<NonNullable<RaiseResult["email"]>>> {
   if (emails.length === 0) return { status: "no-addresses", count: 0 };
   if (!emailConnected()) return { status: "not-connected", count: 0 };
@@ -168,7 +187,13 @@ async function sendEmails(
         method: "POST",
         headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
         signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
-        body: JSON.stringify({ from, to: [to], subject: message.subject, text: message.text }),
+        body: JSON.stringify({
+          from,
+          to: [to],
+          subject: message.subject,
+          text: message.text,
+          ...(attachments.length ? { attachments } : {}),
+        }),
       });
       if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text().catch(() => "")}`);
     }),
@@ -215,6 +240,29 @@ async function overLimit(sql: Sql, device: string, ip: string): Promise<boolean>
   }
 }
 
+type StoredNote = { note: string; at: string; audio: string | null; mime: string };
+
+/** This worker's amber notes from the last 12 hours (newest 3). Never blocks an alert. */
+async function recentNotes(sql: Sql, device: string): Promise<StoredNote[]> {
+  try {
+    const rows = await sql<{ note: string; created_at: string | Date; audio: Uint8Array | null; mime: string }>`
+      select note, created_at, audio, mime from amber_notes
+      where device = ${device} and created_at > now() - interval '12 hours'
+      order by created_at desc
+      limit 3
+    `;
+    return rows.map((r) => ({
+      note: r.note,
+      at: new Date(r.created_at).toISOString(),
+      audio: r.audio ? Buffer.from(r.audio).toString("base64") : null,
+      mime: r.mime,
+    }));
+  } catch (err) {
+    console.error("[alert] could not load amber notes:", String(err));
+    return [];
+  }
+}
+
 export async function notifyEveryone(
   sql: Sql,
   data: RaiseBody,
@@ -229,11 +277,23 @@ export async function notifyEveryone(
     data.lat != null && data.lng != null
       ? await nearestPostcodes([{ lat: data.lat, lng: data.lng }], 1_500)
       : [null];
-  const message = alertEmail(data, new Date().toISOString(), gpsPostcode);
+  const notes = await recentNotes(sql, data.device);
+  const message = alertEmail(
+    data,
+    new Date().toISOString(),
+    gpsPostcode,
+    notes.map((n) => ({ note: n.note, at: n.at, hasAudio: n.audio != null })),
+  );
+  const attachments = notes
+    .filter((n) => n.audio)
+    .map((n) => ({
+      filename: `voice-note-${londonTime(n.at, false).replace(":", "")}.${n.mime.includes("mp4") ? "m4a" : "webm"}`,
+      content: n.audio as string,
+    }));
   const where = gpsPostcode ? `${data.where} (${gpsPostcode})` : data.where;
   const [wa, mail] = await Promise.all([
     sendWhatsapp(data.phones, { name: data.name, detail, where }, message.text),
-    sendEmails(data.emails, message),
+    sendEmails(data.emails, message, attachments),
   ]);
   console.log(
     `[alert] ${data.kind}: whatsapp ${wa.status} ${wa.count}/${data.phones.length}` +

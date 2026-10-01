@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { help } from "@/components/lone/help";
 import { NavLink, TextField, TopBar } from "@/components/lone/chrome";
 import { whatsappReady } from "@/lib/lone/board-api";
 import { channelHref, isIos, launchChannel, launchDuty } from "@/lib/lone/launch";
@@ -103,7 +104,7 @@ export function SettingsScreen() {
 
   return (
     <div className="safe-pad mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-5 bg-bg">
-      <TopBar title="Where alerts go">
+      <TopBar title="Where alerts go" help={help.routes}>
         <NavLink to="/">Field</NavLink>
         <NavLink to="/desk">Desk</NavLink>
         <NavLink to="/board">Board</NavLink>

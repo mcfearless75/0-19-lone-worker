@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { help } from "@/components/lone/help";
 import { ActionButton, NavLink, StatusPill, TextField, TopBar, inputClass } from "@/components/lone/chrome";
 import { HoldButton } from "@/components/lone/hold-button";
 import { lookupAddress } from "@/lib/lone/address-api";
 import { type AddressHit } from "@/lib/lone/address";
 import { saveClip } from "@/lib/lone/audio";
+import { saveNoteOnline } from "@/lib/lone/notes-api";
 import {
   formatRemain,
   mapsHref,
@@ -11,7 +13,7 @@ import {
   uid,
   type Alert,
 } from "@/lib/lone/model";
-import { normalizeTeamCode, raisedLabel, validTeamCode } from "@/lib/lone/board";
+import { deviceId, normalizeTeamCode, raisedLabel, validTeamCode } from "@/lib/lone/board";
 import { pushAlert, standDownBoard } from "@/lib/lone/raise";
 import { useLone } from "@/lib/lone/store";
 
@@ -19,7 +21,6 @@ type View =
   | { name: "home" }
   | { name: "start" }
   | { name: "note" }
-  | { name: "blue" }
   | { name: "send"; alertId: string; dutyNote?: string }
   | { name: "discreet"; alertId: string };
 
@@ -102,16 +103,13 @@ export function FieldScreen() {
   if (view.name === "note") {
     return <NoteSheet jobRef={job?.ref ?? null} onClose={() => setView({ name: "home" })} />;
   }
-  if (view.name === "blue") {
-    return <BlueLight onClose={() => setView({ name: "home" })} />;
-  }
 
   const dueMs = timer ? new Date(timer.expiresAt).getTime() - now : null;
   const warning = timer != null && dueMs != null && dueMs > 0 && dueMs <= profile.warnMinutes * 60_000;
 
   return (
     <div className="safe-pad mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-4 bg-bg">
-      <TopBar title={productName}>
+      <TopBar title={productName} help={help.home}>
         <NavLink to="/desk">Desk</NavLink>
         <NavLink to="/board">Board</NavLink>
         <NavLink to="/settings">Routes</NavLink>
@@ -224,10 +222,6 @@ export function FieldScreen() {
         {holdHint(validTeamCode(normalizeTeamCode(profile.teamCode ?? "")))}
       </p>
 
-      <ActionButton tone="blue" onClick={() => setView({ name: "blue" })}>
-        Blue light
-      </ActionButton>
-
       {job ? (
         <button type="button" className="h-11 text-sm text-muted" onClick={() => setView({ name: "start" })}>
           Start another job
@@ -235,51 +229,6 @@ export function FieldScreen() {
       ) : (
         <ActionButton onClick={() => setView({ name: "note" })}>Amber note</ActionButton>
       )}
-    </div>
-  );
-}
-
-function BlueLight({ onClose }: { onClose: () => void }) {
-  useEffect(() => {
-    let lock: WakeLockSentinel | null = null;
-    let live = true;
-    void navigator.wakeLock
-      ?.request("screen")
-      .then((sentinel) => {
-        if (!live) {
-          void sentinel.release();
-          return;
-        }
-        lock = sentinel;
-      })
-      .catch(() => undefined);
-    return () => {
-      live = false;
-      void lock?.release();
-    };
-  }, []);
-
-  return (
-    <div className="blue-stage safe-pad relative flex min-h-dvh flex-col overflow-hidden">
-      <div className="blue-glow blue-glow-a" aria-hidden />
-      <div className="blue-glow blue-glow-b" aria-hidden />
-      <div className="blue-bar" aria-hidden>
-        <div className="blue-pod blue-pod-a">
-          <span className="blue-core" />
-          <span className="blue-sweep" />
-        </div>
-        <div className="blue-pod blue-pod-b">
-          <span className="blue-core" />
-          <span className="blue-sweep" />
-        </div>
-      </div>
-      <div className="relative z-10 mt-auto flex w-full flex-col gap-3">
-        <p className="text-center text-xs font-bold tracking-widest text-blue-hot">BLUE LIGHT</p>
-        <p className="text-center text-sm leading-relaxed text-white">
-          Hold the phone up. The screen stays awake. This does not raise an alert or message anyone.
-        </p>
-        <ActionButton onClick={onClose}>Turn off</ActionButton>
-      </div>
     </div>
   );
 }
@@ -308,7 +257,7 @@ function SendSheet({
 
   return (
     <div className="safe-pad mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-4 bg-bg">
-      <TopBar title={fresh.kind === "red" ? "Red alert" : "Welfare alert"}>
+      <TopBar title={fresh.kind === "red" ? "Red alert" : "Welfare alert"} help={help.alert}>
         <button type="button" className="h-11 px-2 text-sm text-muted" onClick={onClose}>
           Close
         </button>
@@ -448,7 +397,7 @@ function StartJob({ onClose, onStarted }: { onClose: () => void; onStarted: () =
         onStarted();
       }}
     >
-      <TopBar title="Start a job">
+      <TopBar title="Start a job" help={help.startJob}>
         <button type="button" className="h-11 px-2 text-sm text-muted" onClick={onClose}>
           Close
         </button>
@@ -553,6 +502,8 @@ function NoteSheet({ jobRef, onClose }: { jobRef: string | null; onClose: () => 
   const [seconds, setSeconds] = useState(0);
   const [hasAudio, setHasAudio] = useState(false);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [offline, setOffline] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
 
@@ -611,27 +562,56 @@ function NoteSheet({ jobRef, onClose }: { jobRef: string | null; onClose: () => 
       onSubmit={(event) => {
         event.preventDefault();
         void (async () => {
+          if (saving) return;
           if (recording) await stopRecording();
+          const hasClip = chunks.current.some((chunk) => chunk.size > 0);
+          if (!text.trim() && !hasClip) return;
+          setSaving(true);
+          setError("");
+          const blob = hasClip
+            ? new Blob(chunks.current, { type: chunks.current[0]?.type || "audio/webm" })
+            : null;
+          // Send to the server first, so the note can go out with any alert that follows.
+          // After a failure, "Save on this phone only" is offered as a separate button.
+          try {
+            const state = useLone.getState();
+            await saveNoteOnline({
+              data: {
+                device: deviceId(),
+                name: state.profile.workerName,
+                job: state.jobs.find((entry) => entry.status === "active")?.site ?? "",
+                note: text,
+                lat: state.lastFix?.lat ?? null,
+                lng: state.lastFix?.lng ?? null,
+                audioBase64: blob ? await toBase64(blob) : "",
+                mime: blob?.type ?? "",
+              },
+            });
+          } catch {
+            setSaving(false);
+            setOffline(true);
+            setError("Could not reach the server. Try again when you have signal, or save on this phone only.");
+            return;
+          }
           let audioId: string | null = null;
-          if (chunks.current.some((chunk) => chunk.size > 0)) {
+          if (blob) {
             audioId = uid();
-            const blob = new Blob(chunks.current, { type: chunks.current[0]?.type || "audio/webm" });
             await saveClip(audioId, blob);
           }
-          if (!text.trim() && !audioId) return;
           useLone.getState().addNote({ text, audioId });
           onClose();
         })();
       }}
     >
-      <TopBar title="Amber note">
+      <TopBar title="Amber note" help={help.amberNote}>
         <button type="button" className="h-11 px-2 text-sm text-muted" onClick={onClose}>
           Close
         </button>
       </TopBar>
       <p className="text-sm text-muted">
-        A note before a risky moment. It stays on the desk log{jobRef ? ` against ${jobRef}` : ""}. It does
-        not raise an alert.
+        Say or write what you are walking into. Nobody is messaged now. If you raise an alert in the
+        next 12 hours, this note and the recording go with it to your alert emails
+        {jobRef ? `, filed against ${jobRef}` : ""}.
       </p>
       <textarea
         className={`${inputClass} min-h-32 py-3`}
@@ -644,13 +624,41 @@ function NoteSheet({ jobRef, onClose }: { jobRef: string | null; onClose: () => 
       </ActionButton>
       {error ? <p className="text-sm text-amber">{error}</p> : null}
       {hasAudio && !recording ? (
-        <p className="text-sm text-ok">Voice note ready. It plays from the desk on this phone.</p>
+        <p className="text-sm text-ok">Voice note ready. Press Save to send it to the server.</p>
       ) : null}
       <div className="mt-auto">
         <ActionButton type="submit" tone="amber">
-          Save to the log
+          {saving ? "Saving…" : offline ? "Try again" : "Save"}
         </ActionButton>
+        {offline ? (
+          <button
+            type="button"
+            className="mt-2 h-11 w-full text-sm text-muted"
+            onClick={() => {
+              void (async () => {
+                let audioId: string | null = null;
+                if (chunks.current.some((chunk) => chunk.size > 0)) {
+                  audioId = uid();
+                  await saveClip(audioId, new Blob(chunks.current, { type: chunks.current[0]?.type || "audio/webm" }));
+                }
+                useLone.getState().addNote({ text, audioId });
+                onClose();
+              })();
+            }}
+          >
+            Save on this phone only (it will not go with an alert)
+          </button>
+        ) : null}
       </div>
     </form>
   );
+}
+
+async function toBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
 }
