@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { help } from "@/components/lone/help";
 import { ActionButton, NavLink, StatusPill, TextField, TopBar } from "@/components/lone/chrome";
-import { ageLabel, deviceId, freshCode, normalizeTeamCode, validTeamCode, type BoardPerson } from "@/lib/lone/board";
+import { ageLabel, deviceId, freshCode, isLive, normalizeTeamCode, validTeamCode, type BoardPerson } from "@/lib/lone/board";
 import { leaveBoard, publishPresence, readBoard } from "@/lib/lone/board-api";
 import { mapsHref } from "@/lib/lone/model";
 import { useLone } from "@/lib/lone/store";
@@ -101,18 +101,32 @@ export function BoardScreen() {
           ) : (
             <ul className="grid gap-3">
               {[...people]
-                .sort((a, b) => Number(Boolean(b.alertKind)) - Number(Boolean(a.alertKind)) || a.name.localeCompare(b.name))
+                .sort(
+                  (a, b) =>
+                    Number(Boolean(b.alertKind)) - Number(Boolean(a.alertKind)) ||
+                    Number(isLive(b.seenAt, now)) - Number(isLive(a.seenAt, now)) ||
+                    a.name.localeCompare(b.name),
+                )
                 .map((person) => {
                 const map = mapsHref(person.lat, person.lng);
                 const trouble = person.alertKind === "red" || person.alertKind === "timer";
+                const live = isLive(person.seenAt, now);
                 return (
                   <li
                     key={person.device}
-                    className={`rounded-lg border bg-surface p-4 ${trouble ? "border-alert" : "border-border"}`}
+                    className={`rounded-lg border bg-surface p-4 ${trouble ? "border-alert" : "border-border"} ${
+                      live || trouble ? "" : "opacity-60"
+                    }`}
                   >
                     <div className="flex items-baseline justify-between gap-3">
                       <h2 className="text-lg font-bold text-fg">{person.name}</h2>
-                      <p className="shrink-0 text-sm text-muted">{ageLabel(person.alertAt || person.seenAt, now)}</p>
+                      <p className="shrink-0 text-sm text-muted">
+                        {trouble
+                          ? ageLabel(person.alertAt || person.seenAt, now)
+                          : live
+                            ? `Live · ${ageLabel(person.seenAt, now)}`
+                            : `Last seen ${ageLabel(person.seenAt, now)}`}
+                      </p>
                     </div>
                     {trouble ? (
                       <div className="mt-2">

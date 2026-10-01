@@ -37,6 +37,7 @@ type LoneState = {
   endJob: (jobId: string, outcome: string) => void;
   extendWelfare: (jobId: string, minutes: number) => void;
   checkIn: (jobId: string) => void;
+  markWelfareOnServer: (welfareId: string) => void;
   addNote: (input: { text: string; audioId: string | null }) => AmberNote;
   triggerRed: () => Alert;
   updateAlertNote: (alertId: string, note: string) => void;
@@ -227,6 +228,14 @@ export const useLone = create<LoneState>()(
             events: [event(`Checked in on ${job.ref}`, "checked_in", item.id), ...state.events],
           };
         });
+      },
+
+      markWelfareOnServer: (welfareId) => {
+        set((state) => ({
+          welfare: state.welfare.map((entry) =>
+            entry.id === welfareId ? { ...entry, onServer: true } : entry,
+          ),
+        }));
       },
 
       addNote: (input) => {

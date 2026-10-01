@@ -5,6 +5,7 @@ import { publishPresence } from "@/lib/lone/board-api";
 import { defaultProfile, productName } from "@/lib/lone/model";
 import { pushAlert } from "@/lib/lone/raise";
 import { migrateLoneStorage, useLone } from "@/lib/lone/store";
+import { startWelfareSync } from "@/lib/lone/welfare-sync";
 
 export function LoneGate({ children }: { children: ReactNode }) {
   const hydrated = useLone((state) => state.hydrated);
@@ -63,7 +64,10 @@ export function LoneGate({ children }: { children: ReactNode }) {
         if (seen.has(alert.id) || alert.sample) continue;
         seen.add(alert.id);
         if (alert.kind !== "timer") continue;
-        void pushAlert(alert);
+        // The server fires timers it holds (and messages everyone itself);
+        // the phone only sends when the server never got the timer.
+        const held = useLone.getState().welfare.find((item) => item.id === alert.welfareId)?.onServer;
+        if (!held) void pushAlert(alert);
         if (document.hidden && Notification.permission === "granted") {
           try {
             new Notification("Welfare check missed", {
@@ -84,6 +88,40 @@ export function LoneGate({ children }: { children: ReactNode }) {
     const mark = organisation?.trim();
     document.title = mark ? `${mark} · ${productName}` : productName;
   }, [organisation]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    return startWelfareSync();
+  }, [hydrated]);
+
+  // Keep the screen awake while a job is open, so the timer, the board pin
+  // and the Red alert button stay live. Re-acquired whenever the app returns
+  // to the foreground (the lock is released by the browser when it leaves).
+  useEffect(() => {
+    if (!hydrated || !jobSite || !("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let live = true;
+    const acquire = () => {
+      if (!live || document.visibilityState !== "visible") return;
+      navigator.wakeLock
+        .request("screen")
+        .then((sentinel) => {
+          if (!live) {
+            void sentinel.release();
+            return;
+          }
+          lock = sentinel;
+        })
+        .catch(() => undefined);
+    };
+    acquire();
+    document.addEventListener("visibilitychange", acquire);
+    return () => {
+      live = false;
+      document.removeEventListener("visibilitychange", acquire);
+      void lock?.release();
+    };
+  }, [hydrated, jobSite]);
 
   useEffect(() => {
     if (!hydrated || !navigator.geolocation) return;

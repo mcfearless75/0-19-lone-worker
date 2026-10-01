@@ -122,7 +122,7 @@ export const readBoard = createServerFn({ method: "POST" })
       from presence
       where team = ${data.team}
         and (
-          seen_at > now() - interval '3 minutes'
+          seen_at > now() - interval '12 hours'
           or (alert_kind <> '' and alert_at > now() - interval '12 hours')
         )
       order by name asc

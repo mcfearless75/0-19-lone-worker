@@ -47,6 +47,14 @@ export function deviceId(): string {
   return id;
 }
 
+/** A pin older than this is shown greyed out as "last seen", not live. */
+export const LIVE_WINDOW_MS = 3 * 60_000;
+
+export function isLive(seenAt: string, now: number): boolean {
+  const then = new Date(seenAt).getTime();
+  return Number.isFinite(then) && now - then <= LIVE_WINDOW_MS;
+}
+
 export function ageLabel(iso: string, now: number): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "—";

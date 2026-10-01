@@ -4,7 +4,7 @@ export const help = {
     "Red alert: press and hold the red button for 1.5 seconds, then let go. Straight away your duty mobiles get a WhatsApp and your alert emails get an email, with your location on a map and the nearest postcode.",
     "Start a job: say where you are going and set a welfare timer. If the timer runs out and you have not ended the job, your duty mobiles and alert emails are messaged automatically, as long as the app is open.",
     "Amber note: before something risky, say or type what you are walking into. If you raise an alert in the next 12 hours, the note goes with it.",
-    "Keep this page open while you work. The app can only send while it is on screen.",
+    "While a job is open the screen stays awake. If the phone does lock, the Red alert button needs the app reopened, but a welfare timer still fires: the server holds it and raises the alarm itself.",
     "Desk shows the log kept on this phone. Board shows your team's live positions. Routes is where you set who gets your alerts.",
   ],
   alert: [
@@ -15,7 +15,7 @@ export const help = {
   startJob: [
     "Site: the place name, e.g. Riverside Surgery.",
     "Address: type the street or the postcode. A green tick means the postcode is real and the job is pinned there. A red warning means the postcode does not exist, so check it.",
-    "Welfare timer: how long you expect to be. You get a warning before it ends. If it runs out before you end the job, a welfare alert goes to your duty mobiles and alert emails, as long as the app is open.",
+    "Welfare timer: how long you expect to be. You get a warning before it ends. If it runs out before you press I'm safe or End job, the server sends a welfare alert to your duty mobiles and alert emails, even if this phone is locked, flat or out of signal.",
     "Note for the desk: anything a responder should know, like a code for the door or a dog on site.",
   ],
   amberNote: [
@@ -32,7 +32,7 @@ export const help = {
   board: [
     "The Board shows everyone on your team, with their last position and any open alert.",
     "Everyone on the team types the same board code (4 to 8 letters or numbers). Anyone with the code can see the pins, so keep it to your team.",
-    "A pin updates while that person has the app open.",
+    "A pin is live while that person has the app open and updates every 45 seconds. If their phone locks, the pin stays, greyed out, with when they were last seen. People drop off the board after 12 hours.",
   ],
   routes: [
     "This is where your alerts go. Set it once and test it.",

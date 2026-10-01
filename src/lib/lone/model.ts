@@ -76,6 +76,8 @@ export type Welfare = {
   status: "running" | "checked_in" | "expired";
   lat: number | null;
   lng: number | null;
+  /** True once the server holds this timer and will fire it itself. */
+  onServer?: boolean;
 };
 
 export type AmberNote = {
