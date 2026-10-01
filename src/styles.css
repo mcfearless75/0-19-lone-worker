@@ -1,0 +1,245 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: Arial, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", monospace;
+
+  --color-bg: #ffffff;
+  --color-surface: #f0f4f5;
+  --color-surface-2: #e8edee;
+  --color-border: #aeb7bd;
+  --color-fg: #212b32;
+  --color-muted: #4c6272;
+  --color-faint: #768692;
+  --color-alert: #d5281b;
+  --color-alert-hot: #a81912;
+  --color-amber: #ffb81c;
+  --color-amber-ink: #212b32;
+  --color-ok: #007f3b;
+  --color-ok-ink: #ffffff;
+  --color-blue: #005eb8;
+  --color-blue-hot: #41b6e6;
+  --color-blue-ink: #ffffff;
+}
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 3px solid #ffeb3b;
+    outline-offset: 2px;
+  }
+
+  html,
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    min-height: 100dvh;
+    text-rendering: optimizeLegibility;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+  }
+}
+
+.safe-pad {
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+.hold-surface {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-fade {
+    transition: none;
+  }
+}
+
+.blue-stage {
+  --blue-cycle: 1.8s;
+  background: #003087;
+  color: #ffffff;
+}
+
+.blue-glow,
+.blue-bar {
+  pointer-events: none;
+}
+
+.blue-glow {
+  position: absolute;
+  top: 6%;
+  width: 78%;
+  height: 46%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--color-blue) 0%, transparent 64%);
+  opacity: 0.12;
+  animation: blue-glow var(--blue-cycle) linear infinite;
+}
+
+.blue-glow-a {
+  left: -14%;
+}
+
+.blue-glow-b {
+  right: -14%;
+  animation-delay: calc(var(--blue-cycle) * 0.5);
+}
+
+.blue-bar {
+  position: absolute;
+  top: 20%;
+  left: 6%;
+  right: 6%;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.7rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-blue-hot) 40%, var(--color-border));
+  background: color-mix(in srgb, var(--color-blue) 14%, var(--color-surface));
+}
+
+.blue-pod {
+  position: relative;
+  height: 4.75rem;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-blue) 16%, var(--color-bg));
+}
+
+.blue-pod::after {
+  content: "";
+  position: absolute;
+  top: 14%;
+  right: 14%;
+  left: 14%;
+  height: 26%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-fg) 45%, transparent);
+  opacity: 0.28;
+}
+
+.blue-core,
+.blue-sweep {
+  position: absolute;
+  animation-duration: var(--blue-cycle);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.blue-pod-b .blue-core,
+.blue-pod-b .blue-sweep {
+  animation-delay: calc(var(--blue-cycle) * 0.5);
+}
+
+.blue-core {
+  inset: 0;
+  background: radial-gradient(ellipse at center, var(--color-blue-hot) 0%, var(--color-blue) 42%, transparent 74%);
+  opacity: 0.12;
+  animation-name: blue-core;
+}
+
+.blue-sweep {
+  top: -30%;
+  bottom: -30%;
+  left: 0;
+  width: 38%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-fg) 80%, transparent),
+    transparent
+  );
+  opacity: 0;
+  transform: translateX(-160%);
+  animation-name: blue-sweep;
+}
+
+@keyframes blue-core {
+  0%,
+  52%,
+  100% {
+    opacity: 0.1;
+  }
+  7% {
+    opacity: 1;
+  }
+  16% {
+    opacity: 0.78;
+  }
+  32% {
+    opacity: 0.16;
+  }
+}
+
+@keyframes blue-sweep {
+  0% {
+    opacity: 0;
+    transform: translateX(-160%);
+  }
+  5% {
+    opacity: 0.9;
+  }
+  18% {
+    opacity: 0.25;
+    transform: translateX(320%);
+  }
+  19%,
+  100% {
+    opacity: 0;
+    transform: translateX(320%);
+  }
+}
+
+@keyframes blue-glow {
+  0%,
+  52%,
+  100% {
+    opacity: 0.08;
+  }
+  8% {
+    opacity: 0.9;
+  }
+  24% {
+    opacity: 0.28;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blue-glow,
+  .blue-core,
+  .blue-sweep {
+    animation: none;
+  }
+
+  .blue-core {
+    opacity: 0.85;
+  }
+
+  .blue-glow {
+    opacity: 0.35;
+  }
+
+  .blue-sweep {
+    opacity: 0;
+  }
+}

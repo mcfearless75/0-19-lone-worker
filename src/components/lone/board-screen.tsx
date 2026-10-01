@@ -1,0 +1,173 @@
+import { useEffect, useState } from "react";
+import { ActionButton, NavLink, StatusPill, TextField, TopBar } from "@/components/lone/chrome";
+import { ageLabel, deviceId, freshCode, normalizeTeamCode, validTeamCode, type BoardPerson } from "@/lib/lone/board";
+import { leaveBoard, publishPresence, readBoard } from "@/lib/lone/board-api";
+import { mapsHref } from "@/lib/lone/model";
+import { useLone } from "@/lib/lone/store";
+
+export function BoardScreen() {
+  const teamCode = useLone((state) => state.profile.teamCode ?? "");
+  const setProfile = useLone((state) => state.setProfile);
+  const code = normalizeTeamCode(teamCode);
+  const joined = validTeamCode(code);
+  const [draft, setDraft] = useState("");
+  const [people, setPeople] = useState<BoardPerson[]>([]);
+  const [problem, setProblem] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+  const [self, setSelf] = useState("");
+
+  useEffect(() => {
+    setSelf(deviceId());
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!joined) return;
+    let live = true;
+    const load = () => {
+      const state = useLone.getState();
+      const job = state.jobs.find((entry) => entry.status === "active");
+      void publishPresence({
+        data: {
+          team: code,
+          device: deviceId(),
+          name: state.profile.workerName,
+          job: job?.site ?? "",
+          lat: state.lastFix?.lat ?? null,
+          lng: state.lastFix?.lng ?? null,
+          accuracy: state.lastFix?.accuracy ?? null,
+        },
+      })
+        .then(() => readBoard({ data: { team: code } }))
+        .then((rows) => {
+          if (!live) return;
+          setPeople(rows);
+          setProblem("");
+        })
+        .catch(() => {
+          if (live) setProblem("The board could not be reached.");
+        });
+    };
+    load();
+    const id = window.setInterval(load, 15_000);
+    return () => {
+      live = false;
+      window.clearInterval(id);
+    };
+  }, [code, joined]);
+
+  const stop = () => {
+    const current = normalizeTeamCode(useLone.getState().profile.teamCode ?? "");
+    if (validTeamCode(current)) {
+      void leaveBoard({
+        data: { team: current, device: deviceId(), name: "", job: "", lat: null, lng: null, accuracy: null },
+      }).catch(() => undefined);
+    }
+    setProfile({ teamCode: "" });
+    setPeople([]);
+  };
+
+  return (
+    <div className="safe-pad mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-5 bg-bg">
+      <TopBar title="Board">
+        <NavLink to="/">Field</NavLink>
+        <NavLink to="/desk">Desk</NavLink>
+        <NavLink to="/settings">Routes</NavLink>
+      </TopBar>
+
+      <p className="text-sm leading-relaxed text-muted">
+        Same code on every phone. A red alert stays here even if that phone then locks.
+        A quiet phone with no alert drops off after a few minutes. This is not a trail.
+      </p>
+
+      {joined ? (
+        <>
+          <section className="rounded-lg border border-border bg-surface p-4">
+            <p className="text-sm text-muted">Board code</p>
+            <p className="mt-1 font-mono text-3xl tracking-widest text-blue">{code}</p>
+            <p className="mt-2 text-sm text-muted">Anyone with this code can see these pins.</p>
+            <button type="button" className="mt-3 h-11 text-sm text-muted underline" onClick={stop}>
+              Stop sharing
+            </button>
+          </section>
+          {problem ? <p className="text-sm text-alert">{problem}</p> : null}
+          {people.some((person) => person.device === self && person.name === "Unnamed") ? (
+            <p className="text-sm text-muted">Set your name on the field screen so the others can tell who you are.</p>
+          ) : null}
+          {people.length === 0 ? (
+            <p className="text-sm text-muted">Nobody is on this board yet. Open the app on a phone with this code.</p>
+          ) : (
+            <ul className="grid gap-3">
+              {[...people]
+                .sort((a, b) => Number(Boolean(b.alertKind)) - Number(Boolean(a.alertKind)) || a.name.localeCompare(b.name))
+                .map((person) => {
+                const map = mapsHref(person.lat, person.lng);
+                const trouble = person.alertKind === "red" || person.alertKind === "timer";
+                return (
+                  <li
+                    key={person.device}
+                    className={`rounded-lg border bg-surface p-4 ${trouble ? "border-alert" : "border-border"}`}
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <h2 className="text-lg font-bold text-fg">{person.name}</h2>
+                      <p className="shrink-0 text-sm text-muted">{ageLabel(person.alertAt || person.seenAt, now)}</p>
+                    </div>
+                    {trouble ? (
+                      <div className="mt-2">
+                        <StatusPill tone={person.alertKind === "red" ? "alert" : "amber"}>
+                          {person.alertKind === "red" ? "Red alert" : "Welfare missed"}
+                        </StatusPill>
+                      </div>
+                    ) : null}
+                    <p className="mt-2 text-sm text-muted">
+                      {person.device === self ? "This phone" : "Another phone"}
+                      {person.job ? ` · ${person.job}` : " · No job open"}
+                    </p>
+                    {person.alertNote ? <p className="mt-2 text-sm text-fg">{person.alertNote}</p> : null}
+                    {map ? (
+                      <a
+                        className="mt-2 inline-flex h-11 items-center text-sm font-bold text-blue underline"
+                        href={map}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open the map pin
+                        {person.accuracy != null ? ` (±${Math.round(person.accuracy)} m)` : ""}
+                      </a>
+                    ) : (
+                      <p className="mt-2 text-sm text-muted">No location yet. Allow location on that phone.</p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
+      ) : (
+        <>
+          <ActionButton
+            tone="blue"
+            onClick={() => {
+              setProfile({ teamCode: freshCode() });
+            }}
+          >
+            Make a code
+          </ActionButton>
+          <TextField
+            label="Or join a code"
+            value={draft}
+            placeholder="ABCD"
+            onChange={(value) => setDraft(normalizeTeamCode(value))}
+          />
+          <ActionButton
+            disabled={!validTeamCode(normalizeTeamCode(draft))}
+            onClick={() => setProfile({ teamCode: normalizeTeamCode(draft) })}
+          >
+            Join
+          </ActionButton>
+        </>
+      )}
+    </div>
+  );
+}
