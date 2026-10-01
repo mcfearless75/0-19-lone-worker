@@ -8,7 +8,12 @@ import { brandLabel } from "./model";
  * every alert email gets a plain email, all in parallel, the moment the
  * button is released. Nobody has to press send on the worker's phone.
  *
+ * WhatsApp goes through Twilio when its credentials are set, otherwise Meta.
+ *
  * Env (set in the host's settings, never in the repo):
+ *   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN     Twilio
+ *   TWILIO_WHATSAPP_FROM                      e.g. +14155238886 (the sandbox number)
+ *   TWILIO_SMS_FROM                           optional: SMS fallback when a WhatsApp fails
  *   WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID  Meta WhatsApp Cloud API
  *   WHATSAPP_TEMPLATE                         approved template, default lone_worker_alert
  *   RESEND_API_KEY, ALERT_EMAIL_FROM          Resend, e.g. "Lone Worker <alerts@yourdomain.co.uk>"
@@ -24,8 +29,45 @@ function env(key: string): string {
   return process.env[key]?.trim() ?? "";
 }
 
-export function whatsappConnected(): boolean {
+function twilioConnected(): boolean {
+  return Boolean(env("TWILIO_ACCOUNT_SID") && env("TWILIO_AUTH_TOKEN") && env("TWILIO_WHATSAPP_FROM"));
+}
+
+function metaConnected(): boolean {
   return Boolean(env("WHATSAPP_TOKEN") && env("WHATSAPP_PHONE_NUMBER_ID"));
+}
+
+export function whatsappConnected(): boolean {
+  return twilioConnected() || metaConnected();
+}
+
+/** "+44 7700…", "447700…" or "whatsapp:+44…" → "+447700…". */
+function e164(number: string): string {
+  return `+${number.replace(/^whatsapp:/, "").replace(/[^\d]/g, "")}`;
+}
+
+async function twilioSend(to: string, from: string, body: string): Promise<void> {
+  const sid = env("TWILIO_ACCOUNT_SID");
+  const auth = Buffer.from(`${sid}:${env("TWILIO_AUTH_TOKEN")}`).toString("base64");
+  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    method: "POST",
+    headers: { authorization: `Basic ${auth}`, "content-type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+    body: new URLSearchParams({ To: to, From: from, Body: body }),
+  });
+  if (!res.ok) throw new Error(`Twilio ${res.status}: ${await res.text().catch(() => "")}`);
+}
+
+/** WhatsApp via Twilio, falling back to SMS for that number when TWILIO_SMS_FROM is set. */
+async function twilioWhatsapp(to: string, text: string): Promise<void> {
+  try {
+    await twilioSend(`whatsapp:${e164(to)}`, `whatsapp:${e164(env("TWILIO_WHATSAPP_FROM"))}`, text);
+  } catch (err) {
+    const smsFrom = env("TWILIO_SMS_FROM");
+    if (!smsFrom) throw err;
+    console.error("[alert] Twilio WhatsApp failed, sending SMS instead:", String(err));
+    await twilioSend(e164(to), e164(smsFrom), text);
+  }
 }
 
 export function emailConnected(): boolean {
@@ -35,14 +77,17 @@ export function emailConnected(): boolean {
 async function sendWhatsapp(
   phones: string[],
   params: { name: string; detail: string; where: string },
+  text: string,
 ): Promise<Channel<RaiseResult["whatsapp"]>> {
   if (phones.length === 0) return { status: "no-numbers", count: 0 };
   if (!whatsappConnected()) return { status: "not-connected", count: 0 };
   const token = env("WHATSAPP_TOKEN");
   const phoneId = env("WHATSAPP_PHONE_NUMBER_ID");
   const template = env("WHATSAPP_TEMPLATE") || "lone_worker_alert";
+  const viaTwilio = twilioConnected();
   const results = await Promise.allSettled(
     phones.map(async (to) => {
+      if (viaTwilio) return twilioWhatsapp(to, text);
       const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
         method: "POST",
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
@@ -173,9 +218,10 @@ export async function notifyEveryone(
     return { whatsapp: "failed", sentTo: 0, email: "failed", emailedTo: 0 };
   }
   const detail = [data.job, data.note].filter(Boolean).join(". ") || "No further detail";
+  const message = alertEmail(data, new Date().toISOString());
   const [wa, mail] = await Promise.all([
-    sendWhatsapp(data.phones, { name: data.name, detail, where: data.where }),
-    sendEmails(data.emails, alertEmail(data, new Date().toISOString())),
+    sendWhatsapp(data.phones, { name: data.name, detail, where: data.where }, message.text),
+    sendEmails(data.emails, message),
   ]);
   return { whatsapp: wa.status, sentTo: wa.count, email: mail.status, emailedTo: mail.count };
 }
