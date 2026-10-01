@@ -223,5 +223,9 @@ export async function notifyEveryone(
     sendWhatsapp(data.phones, { name: data.name, detail, where: data.where }, message.text),
     sendEmails(data.emails, message),
   ]);
+  console.log(
+    `[alert] ${data.kind}: whatsapp ${wa.status} ${wa.count}/${data.phones.length}` +
+      ` via ${twilioConnected() ? "twilio" : "meta"}, email ${mail.status} ${mail.count}/${data.emails.length}`,
+  );
   return { whatsapp: wa.status, sentTo: wa.count, email: mail.status, emailedTo: mail.count };
 }
