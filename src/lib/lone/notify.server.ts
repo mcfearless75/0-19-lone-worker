@@ -14,7 +14,8 @@ import { nearestPostcodes } from "./postcodes.server";
  * Env (set in the host's settings, never in the repo):
  *   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN     Twilio
  *   TWILIO_WHATSAPP_FROM                      e.g. +14155238886 (the sandbox number)
- *   TWILIO_SMS_FROM                           optional: SMS fallback when a WhatsApp fails
+ *   TWILIO_SMS_FROM                           optional: SMS fallback when a WhatsApp fails,
+ *                                             at send time or later (see delivery.server.ts)
  *   WHATSAPP_TOKEN, WHATSAPP_PHONE_NUMBER_ID  Meta WhatsApp Cloud API
  *   WHATSAPP_TEMPLATE                         approved template, default lone_worker_alert
  *   RESEND_API_KEY, ALERT_EMAIL_FROM          Resend, e.g. "Lone Worker <alerts@yourdomain.co.uk>"
@@ -47,27 +48,63 @@ function e164(number: string): string {
   return `+${number.replace(/^whatsapp:/, "").replace(/[^\d]/g, "")}`;
 }
 
-async function twilioSend(to: string, from: string, body: string): Promise<void> {
+function twilioAuth(): { sid: string; header: string } {
   const sid = env("TWILIO_ACCOUNT_SID");
-  const auth = Buffer.from(`${sid}:${env("TWILIO_AUTH_TOKEN")}`).toString("base64");
+  return { sid, header: `Basic ${Buffer.from(`${sid}:${env("TWILIO_AUTH_TOKEN")}`).toString("base64")}` };
+}
+
+/** Send one message through Twilio; returns Twilio's message SID. */
+async function twilioSend(to: string, from: string, body: string): Promise<string> {
+  const { sid, header } = twilioAuth();
   const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
     method: "POST",
-    headers: { authorization: `Basic ${auth}`, "content-type": "application/x-www-form-urlencoded" },
+    headers: { authorization: header, "content-type": "application/x-www-form-urlencoded" },
     signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     body: new URLSearchParams({ To: to, From: from, Body: body }),
   });
   if (!res.ok) throw new Error(`Twilio ${res.status}: ${await res.text().catch(() => "")}`);
+  const data = (await res.json().catch(() => ({}))) as { sid?: string };
+  return data.sid ?? "";
 }
 
-/** WhatsApp via Twilio, falling back to SMS for that number when TWILIO_SMS_FROM is set. */
-async function twilioWhatsapp(to: string, text: string): Promise<void> {
+/** Twilio's current view of a message: delivered, read, sent, failed, undelivered… */
+export async function twilioStatus(messageSid: string): Promise<{ status: string; errorCode: string | null }> {
+  const { sid, header } = twilioAuth();
+  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages/${messageSid}.json`, {
+    headers: { authorization: header },
+    signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`Twilio ${res.status}`);
+  const data = (await res.json()) as { status?: string; error_code?: number | string | null };
+  return { status: String(data.status ?? "unknown"), errorCode: data.error_code == null ? null : String(data.error_code) };
+}
+
+/** SMS the same text to a number whose WhatsApp did not arrive. False when no SMS number is set. */
+export async function twilioSmsFallback(to: string, text: string): Promise<boolean> {
+  const smsFrom = env("TWILIO_SMS_FROM");
+  if (!smsFrom) return false;
+  await twilioSend(e164(to), e164(smsFrom), text);
+  return true;
+}
+
+/**
+ * WhatsApp via Twilio. Rejected outright → SMS now. Accepted → remembered in
+ * wa_sends so the sweep can SMS later if Twilio reports it never arrived.
+ */
+async function twilioWhatsapp(sql: Sql, to: string, text: string): Promise<void> {
+  let messageSid: string;
   try {
-    await twilioSend(`whatsapp:${e164(to)}`, `whatsapp:${e164(env("TWILIO_WHATSAPP_FROM"))}`, text);
+    messageSid = await twilioSend(`whatsapp:${e164(to)}`, `whatsapp:${e164(env("TWILIO_WHATSAPP_FROM"))}`, text);
   } catch (err) {
-    const smsFrom = env("TWILIO_SMS_FROM");
-    if (!smsFrom) throw err;
-    console.error("[alert] Twilio WhatsApp failed, sending SMS instead:", String(err));
-    await twilioSend(e164(to), e164(smsFrom), text);
+    console.error("[alert] Twilio WhatsApp rejected, sending SMS instead:", String(err));
+    if (!(await twilioSmsFallback(to, text))) throw err;
+    return;
+  }
+  if (!messageSid) return;
+  try {
+    await sql`insert into wa_sends (sid, to_number, body) values (${messageSid}, ${e164(to)}, ${text})`;
+  } catch (err) {
+    console.error("[alert] could not record WhatsApp for delivery check:", String(err));
   }
 }
 
@@ -76,6 +113,7 @@ export function emailConnected(): boolean {
 }
 
 async function sendWhatsapp(
+  sql: Sql,
   phones: string[],
   params: { name: string; detail: string; where: string },
   text: string,
@@ -88,7 +126,7 @@ async function sendWhatsapp(
   const viaTwilio = twilioConnected();
   const results = await Promise.allSettled(
     phones.map(async (to) => {
-      if (viaTwilio) return twilioWhatsapp(to, text);
+      if (viaTwilio) return twilioWhatsapp(sql, to, text);
       const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
         method: "POST",
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
@@ -292,7 +330,7 @@ export async function notifyEveryone(
     }));
   const where = gpsPostcode ? `${data.where} (${gpsPostcode})` : data.where;
   const [wa, mail] = await Promise.all([
-    sendWhatsapp(data.phones, { name: data.name, detail, where }, message.text),
+    sendWhatsapp(sql, data.phones, { name: data.name, detail, where }, message.text),
     sendEmails(data.emails, message, attachments),
   ]);
   console.log(

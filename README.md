@@ -12,7 +12,7 @@ Stack: TanStack Start (React) running as a Node server on Railway, Postgres via 
 |---|---|
 | `DATABASE_URL` | Postgres connection string. Without it the app falls back to an in-memory database that resets on restart. |
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` | Twilio WhatsApp, used when set (sandbox number `+14155238886`) |
-| `TWILIO_SMS_FROM` | Optional: SMS fallback when a WhatsApp can't be delivered |
+| `TWILIO_SMS_FROM` | Optional: SMS to the same number when a WhatsApp is rejected, fails, or is still undelivered after 10 minutes |
 | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | Meta WhatsApp Cloud API, used when Twilio isn't set |
 | `WHATSAPP_TEMPLATE` | Approved template with 3 body variables (worker, detail, where). Default `lone_worker_alert` |
 | `RESEND_API_KEY`, `ALERT_EMAIL_FROM` | Resend email, e.g. `Lone Worker <alerts@yourdomain.co.uk>` |
