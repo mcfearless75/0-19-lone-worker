@@ -2,6 +2,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import type { Sql } from "@/lib/db";
 import type { RaiseBody, RaiseResult } from "./board";
 import { brandLabel } from "./model";
+import { nearestPostcodes } from "./postcodes.server";
 
 /**
  * Server-side alert fan-out. Every duty mobile gets a WhatsApp template and
@@ -123,7 +124,11 @@ async function sendWhatsapp(
 }
 
 /** Email text is built here from the validated fields, never taken from the client. */
-export function alertEmail(data: RaiseBody, at: string): { subject: string; text: string } {
+export function alertEmail(
+  data: RaiseBody,
+  at: string,
+  gpsPostcode: string | null = null,
+): { subject: string; text: string } {
   const brand = brandLabel(data.org);
   const title = data.kind === "timer" ? "WELFARE TIMER EXPIRED" : "RED ALERT";
   const text = [
@@ -138,6 +143,7 @@ export function alertEmail(data: RaiseBody, at: string): { subject: string; text
       minute: "2-digit",
     })}`,
     `Where: ${data.where}`,
+    gpsPostcode ? `Nearest postcode (from GPS): ${gpsPostcode}` : null,
     data.note ? `Note: ${data.note}` : null,
     "",
     "Call the worker now and follow your emergency procedure.",
@@ -218,9 +224,15 @@ export async function notifyEveryone(
     return { whatsapp: "failed", sentTo: 0, email: "failed", emailedTo: 0 };
   }
   const detail = [data.job, data.note].filter(Boolean).join(". ") || "No further detail";
-  const message = alertEmail(data, new Date().toISOString());
+  // Official postcode for the live GPS fix. Capped at 1.5 s: an alert never waits longer.
+  const [gpsPostcode] =
+    data.lat != null && data.lng != null
+      ? await nearestPostcodes([{ lat: data.lat, lng: data.lng }], 1_500)
+      : [null];
+  const message = alertEmail(data, new Date().toISOString(), gpsPostcode);
+  const where = gpsPostcode ? `${data.where} (${gpsPostcode})` : data.where;
   const [wa, mail] = await Promise.all([
-    sendWhatsapp(data.phones, { name: data.name, detail, where: data.where }, message.text),
+    sendWhatsapp(data.phones, { name: data.name, detail, where }, message.text),
     sendEmails(data.emails, message),
   ]);
   console.log(

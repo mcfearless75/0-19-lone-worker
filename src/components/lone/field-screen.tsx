@@ -394,6 +394,7 @@ function StartJob({ onClose, onStarted }: { onClose: () => void; onStarted: () =
   const [minutes, setMinutes] = useState<number | null>(30);
   const [hits, setHits] = useState<AddressHit[]>([]);
   const [checked, setChecked] = useState("");
+  const [badPostcode, setBadPostcode] = useState("");
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
   const choices = [15, 30, 45, 60, 90];
 
@@ -402,6 +403,7 @@ function StartJob({ onClose, onStarted }: { onClose: () => void; onStarted: () =
     if (query.length < 3) {
       setHits([]);
       setChecked("");
+      setBadPostcode("");
       return;
     }
     let live = true;
@@ -411,12 +413,14 @@ function StartJob({ onClose, onStarted }: { onClose: () => void; onStarted: () =
           if (!live) return;
           setHits(result.hits);
           setChecked(result.postcode?.code ?? "");
+          setBadPostcode(result.invalidPostcode ?? "");
           if (result.postcode) setPin({ lat: result.postcode.lat, lng: result.postcode.lng });
         })
         .catch(() => {
           if (!live) return;
           setHits([]);
           setChecked("");
+          setBadPostcode("");
         });
     }, 400);
     return () => {
@@ -462,7 +466,14 @@ function StartJob({ onClose, onStarted }: { onClose: () => void; onStarted: () =
           placeholder="Start typing a street or postcode"
           autoComplete="off"
         />
-        {checked ? <p className="mt-2 text-sm text-muted">Using {checked}.</p> : null}
+        {checked ? (
+          <p className="mt-2 text-sm text-ok">✓ {checked} is a real postcode. The job is pinned there.</p>
+        ) : null}
+        {badPostcode ? (
+          <p className="mt-2 text-sm text-alert">
+            {badPostcode} is not a real postcode. Check it before you start, so help goes to the right place.
+          </p>
+        ) : null}
         {hits.length ? (
           <ul className="mt-2 overflow-hidden rounded-lg border border-border bg-surface">
             {hits.map((hit) => (
@@ -478,6 +489,9 @@ function StartJob({ onClose, onStarted }: { onClose: () => void; onStarted: () =
                   }}
                 >
                   {hit.label}
+                  {hit.postcode ? null : (
+                    <span className="block text-xs text-muted">Postcode not confirmed. Add it after picking.</span>
+                  )}
                 </button>
               </li>
             ))}
