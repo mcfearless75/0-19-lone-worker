@@ -4,9 +4,9 @@ Phone-first lone worker web app (installable PWA). Hold Red Alert, release, and 
 server instantly messages up to 8 duty mobiles by WhatsApp and up to 8 addresses by
 email, and pins the worker on the team board.
 
-Stack: TanStack Start (React) on Vercel, Postgres (Neon) via `DATABASE_URL`.
+Stack: TanStack Start (React) running as a Node server on Railway, Postgres via `DATABASE_URL`. Migrations run on start (`npm start`).
 
-## Environment variables (set in Vercel, never commit)
+## Environment variables (set in Railway, never commit)
 
 | Variable | Purpose |
 |---|---|
@@ -22,5 +22,6 @@ npm install
 npm run dev        # http://localhost:8080
 npm test
 npm run typecheck
-npm run build      # also applies migrations/ when DATABASE_URL is set
+npm run build
+npm start          # applies migrations/ then serves on $PORT
 ```
