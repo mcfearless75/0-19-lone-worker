@@ -50,7 +50,7 @@ export function evidenceLines(p: EvidencePack): PdfLine[] {
   const a = p.alert;
   const L: PdfLine[] = [];
   const h = (t: string) => L.push({ text: "" }, { text: t, bold: true, size: 13 });
-  L.push({ text: `${a.org || "0-19 Lone Worker"} — Lone worker incident evidence pack`, bold: true, size: 16 });
+  L.push({ text: `Incident evidence pack: ${label(a.kind)} — ${a.name}`, bold: true, size: 16 });
   L.push({ text: `Generated ${ukTime(p.generatedAt)} · Alert ${a.id}` });
   L.push({ text: "Times are UK local time. Positions are from the worker's phone GPS." });
 

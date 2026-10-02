@@ -4,6 +4,7 @@ import { distanceM } from "./geo";
 import { type EvidencePack, evidenceLines, ukTime } from "./evidence";
 import { sendEmailWithFiles } from "./notify.server";
 import { buildPdf } from "./pdf";
+import { NHS_LOGO } from "./nhs-logo";
 
 /**
  * The server's record of each alert, kept so an evidence pack can be built
@@ -179,7 +180,18 @@ export async function gatherEvidence(sql: Sql, alertId: string): Promise<{ pack:
 }
 
 export function evidencePdf(pack: EvidencePack): Uint8Array {
-  return buildPdf(evidenceLines(pack), `Evidence pack ${pack.alert.id}`);
+  const a = pack.alert;
+  return buildPdf(
+    evidenceLines(pack),
+    `Evidence pack ${a.id}`,
+    {
+      title: a.org || "0-19 Lone Worker",
+      subtitle: `Lone worker incident evidence pack · ${a.name} · ${ukTime(a.raisedAt)}`,
+      footer: `Confidential. Generated ${ukTime(pack.generatedAt)} from the 0-19 Lone Worker system. Alert ${a.id}.`,
+      nhs: true,
+    },
+    NHS_LOGO,
+  );
 }
 
 /** Email the pack as a PDF to the alert's email list. Returns how many addresses accepted it. */
