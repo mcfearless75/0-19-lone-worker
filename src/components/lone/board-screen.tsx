@@ -83,8 +83,9 @@ export function BoardScreen() {
       </TopBar>
 
       <p className="text-sm leading-relaxed text-muted">
-        Same code on every phone. A red alert stays here even if that phone then locks.
-        A quiet phone with no alert drops off after a few minutes. This is not a trail.
+        Same code on every phone. A pin is live while that person has the app open. If their phone
+        locks they go grey with when they were last seen, and drop off after 12 hours or when they
+        tap Stop sharing. A red alert stays here regardless. This is not a trail.
       </p>
 
       {joined ? (
