@@ -40,7 +40,7 @@ type LoneState = {
   /** Worker has arrived: start the welfare timer now (jobs started "timer on arrival"). */
   arrive: (jobId: string) => void;
   extendWelfare: (jobId: string, minutes: number) => void;
-  checkIn: (jobId: string) => void;
+  checkIn: (jobId: string, duress?: boolean) => void;
   markWelfareOnServer: (welfareId: string) => void;
   addNote: (input: { text: string; audioId: string | null }) => AmberNote;
   triggerRed: () => Alert;
@@ -261,14 +261,14 @@ export const useLone = create<LoneState>()(
         });
       },
 
-      checkIn: (jobId) => {
+      checkIn: (jobId, duress = false) => {
         set((state) => {
           const item = runningWelfare(state.welfare, jobId);
           const job = state.jobs.find((entry) => entry.id === jobId);
           if (!item || !job) return state;
           return {
             welfare: state.welfare.map((entry) =>
-              entry.id === item.id ? { ...entry, status: "checked_in" as const } : entry,
+              entry.id === item.id ? { ...entry, status: "checked_in" as const, ...(duress ? { duress: true } : {}) } : entry,
             ),
             events: [event(`Checked in on ${job.ref}`, "checked_in", item.id), ...state.events],
           };

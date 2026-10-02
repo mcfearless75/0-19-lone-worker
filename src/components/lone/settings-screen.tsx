@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { pinProblem } from "@/lib/lone/pin";
 import { help } from "@/components/lone/help";
 import { NavLink, TextField, TopBar } from "@/components/lone/chrome";
 import { whatsappReady } from "@/lib/lone/board-api";
@@ -217,6 +218,34 @@ export function SettingsScreen() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-surface p-4">
+        <p className="text-sm font-bold text-fg">Safe PIN and duress PIN</p>
+        <p className="mt-1 text-sm text-muted">
+          Optional. With a safe PIN set, I'm safe and False alarm ask for it, so nobody can stand your alert
+          down for you. The duress PIN looks exactly the same on this phone, but tells the team you are under
+          threat and not to phone you.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <TextField
+            label="Safe PIN"
+            value={profile.safePin ?? ""}
+            type="password"
+            placeholder="4 digits"
+            onChange={(safePin) => setProfile({ safePin: safePin.replace(/\D/g, "").slice(0, 4) })}
+          />
+          <TextField
+            label="Duress PIN"
+            value={profile.duressPin ?? ""}
+            type="password"
+            placeholder="4 digits"
+            onChange={(duressPin) => setProfile({ duressPin: duressPin.replace(/\D/g, "").slice(0, 4) })}
+          />
+        </div>
+        {pinProblem(profile.safePin ?? "", profile.duressPin ?? "") ? (
+          <p className="mt-2 text-sm text-alert">{pinProblem(profile.safePin ?? "", profile.duressPin ?? "")}</p>
+        ) : null}
       </div>
 
       <Toggle

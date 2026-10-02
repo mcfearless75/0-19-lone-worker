@@ -9,7 +9,7 @@ export function currentVisit(jobs: Job[], welfare: Welfare[]): VisitFields {
   const job = jobs.find((entry) => entry.status === "active");
   if (!job) return { visitState: "", visitStartedAt: null, dueAt: null, checkedInAt: null };
   const running = welfare.find((item) => item.jobId === job.id && item.status === "running");
-  const checked = welfare.find((item) => item.jobId === job.id && item.status === "checked_in");
+  const checked = welfare.find((item) => item.jobId === job.id && item.status === "checked_in" && !item.duress);
   if (job.arrivedAt === null) return { visitState: "travelling", visitStartedAt: job.startedAt, dueAt: null, checkedInAt: null };
   if (running) {
     const overdue = new Date(running.expiresAt).getTime() < Date.now();
@@ -70,7 +70,7 @@ export function startVisitSync(): () => void {
     const prevById = new Map(prev.welfare.map((item) => [item.id, item]));
     for (const item of state.welfare) {
       const old = prevById.get(item.id);
-      if (!old || old.status !== "running" || item.status !== "checked_in" || item.sample) continue;
+      if (!old || old.status !== "running" || item.status !== "checked_in" || item.sample || item.duress) continue;
       if (!state.profile.notifyOnCheckIn) continue;
       const job = state.jobs.find((entry) => entry.id === item.jobId);
       void announceCheckIn({

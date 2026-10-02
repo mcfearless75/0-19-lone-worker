@@ -18,6 +18,10 @@ export type Profile = {
   alertPhones: string;
   /** Also WhatsApp the duty mobiles when the worker checks in safe. Off by default. */
   notifyOnCheckIn: boolean;
+  /** 4 digits, optional. When set, standing down or checking in asks for it. */
+  safePin: string;
+  /** 4 digits, optional. Looks like the safe PIN on the phone but raises a silent duress alert. */
+  duressPin: string;
 };
 
 export type Fix = {
@@ -84,6 +88,8 @@ export type Welfare = {
   lng: number | null;
   /** True once the server holds this timer and will fire it itself. */
   onServer?: boolean;
+  /** Checked in with the duress PIN: the phone looks normal, the server is not told. */
+  duress?: boolean;
 };
 
 export type AmberNote = {
@@ -123,6 +129,8 @@ export const defaultProfile: Profile = {
   teamCode: "",
   alertPhones: "",
   notifyOnCheckIn: false,
+  safePin: "",
+  duressPin: "",
 };
 
 export function uid(): string {

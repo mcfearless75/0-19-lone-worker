@@ -14,8 +14,72 @@ import {
   type Alert,
 } from "@/lib/lone/model";
 import { deviceId, normalizeTeamCode, raisedLabel, validTeamCode } from "@/lib/lone/board";
-import { pushAlert, standDownBoard } from "@/lib/lone/raise";
+import { pushAlert, pushDuress, standDownBoard } from "@/lib/lone/raise";
+import { classifyPin, pinsConfigured } from "@/lib/lone/pin";
 import { useLone } from "@/lib/lone/store";
+
+type PinAsk = { onDone: (duress: boolean) => void } | null;
+
+/**
+ * Asks for the safe PIN before a stand-down or check-in. The duress PIN is
+ * accepted exactly like the safe one on screen; the caller gets duress=true
+ * and quietly raises the alarm. A wrong PIN just shakes.
+ */
+function PinSheet({ ask, onCancel }: { ask: PinAsk; onCancel: () => void }) {
+  const [code, setCode] = useState("");
+  const [wrong, setWrong] = useState(false);
+  const profile = useLone((state) => state.profile);
+  if (!ask) return null;
+  const submit = () => {
+    const result = classifyPin(code, profile);
+    if (result === "safe" || result === "none") return ask.onDone(false);
+    if (result === "duress") return ask.onDone(true);
+    setWrong(true);
+    setCode("");
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
+      <div className="w-full max-w-lg rounded-lg bg-bg p-4">
+        <p className="text-base font-bold text-fg">Enter your PIN</p>
+        <input
+          className={`${inputClass} mt-3 text-center font-mono text-2xl tracking-[0.5em]`}
+          type="password"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          maxLength={4}
+          autoFocus
+          value={code}
+          onChange={(event) => {
+            setWrong(false);
+            setCode(event.target.value.replace(/\D/g, "").slice(0, 4));
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && code.length === 4) submit();
+          }}
+        />
+        {wrong ? <p className="mt-2 text-sm text-alert">That is not your PIN.</p> : null}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <ActionButton tone="ghost" onClick={onCancel}>
+            Cancel
+          </ActionButton>
+          <ActionButton disabled={code.length !== 4} onClick={submit}>
+            Confirm
+          </ActionButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Run `go` straight away when no PIN is set, otherwise after the PIN sheet. */
+function guarded(
+  profile: { safePin?: string; duressPin?: string },
+  setAsk: (ask: PinAsk) => void,
+  go: (duress: boolean) => void,
+): void {
+  if (!pinsConfigured(profile)) return go(false);
+  setAsk({ onDone: (duress) => { setAsk(null); go(duress); } });
+}
 
 type View =
   | { name: "home" }
@@ -32,6 +96,7 @@ export function FieldScreen() {
   const setProfile = useLone((state) => state.setProfile);
   const [view, setView] = useState<View>({ name: "home" });
   const [now, setNow] = useState(() => Date.now());
+  const [pinAsk, setPinAsk] = useState<PinAsk>(null);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -109,6 +174,7 @@ export function FieldScreen() {
 
   return (
     <div className="safe-pad mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-4 bg-bg">
+      <PinSheet ask={pinAsk} onCancel={() => setPinAsk(null)} />
       <TopBar title={productName} help={help.home}>
         <NavLink to="/desk">Desk</NavLink>
         <NavLink to="/board">Board</NavLink>
@@ -150,10 +216,22 @@ export function FieldScreen() {
             <ActionButton tone="amber" onClick={() => setView({ name: "send", alertId: openTimer.id })}>
               Send
             </ActionButton>
-            <ActionButton tone="ok" onClick={() => {
-              useLone.getState().markSafe(openTimer.id);
-              void standDownBoard();
-            }}>
+            <ActionButton
+              tone="ok"
+              onClick={() =>
+                guarded(profile, setPinAsk, (duress) => {
+                  if (duress) {
+                    const site = job?.site ?? "";
+                    useLone.getState().checkIn(openTimer.jobId ?? "", true);
+                    useLone.getState().resolveAlert(openTimer.id, "Worker checked in safe");
+                    void pushDuress(site);
+                    return;
+                  }
+                  useLone.getState().markSafe(openTimer.id);
+                  void standDownBoard();
+                })
+              }
+            >
               I'm safe
             </ActionButton>
           </div>
@@ -178,9 +256,16 @@ export function FieldScreen() {
               {job.timerMinutes ? ` to start the ${job.timerMinutes} min timer` : ""}.
             </p>
           ) : timer && dueMs != null ? (
-            <p className={`mt-3 font-mono text-3xl tabular-nums ${dueMs < 0 ? "text-amber" : "text-fg"}`}>
-              {formatRemain(dueMs)}
-            </p>
+            <>
+              <p className={`mt-3 font-mono text-3xl tabular-nums ${dueMs < 0 ? "text-amber" : "text-fg"}`}>
+                {formatRemain(dueMs)}
+              </p>
+              {warning ? (
+                <p className="mt-1 text-sm font-bold text-amber">
+                  Still OK? Tap I'm safe, or +15 min if you need longer. The team is alerted when it reaches zero.
+                </p>
+              ) : null}
+            </>
           ) : (
             <p className="mt-3 text-sm text-muted">
               {checkedIn ? "Checked in safe. The team can see it. End the job when you leave." : "No welfare timer on this job."}
@@ -195,7 +280,15 @@ export function FieldScreen() {
           ) : null}
           <div className="mt-3 grid grid-cols-2 gap-2">
             {timer ? (
-              <ActionButton tone="ok" onClick={() => useLone.getState().checkIn(job.id)}>
+              <ActionButton
+                tone="ok"
+                onClick={() =>
+                  guarded(profile, setPinAsk, (duress) => {
+                    useLone.getState().checkIn(job.id, duress);
+                    if (duress) void pushDuress(job.site);
+                  })
+                }
+              >
                 I'm safe
               </ActionButton>
             ) : (
@@ -261,6 +354,8 @@ function SendSheet({
   onClose: () => void;
   dutyNote?: string;
 }) {
+  const profile = useLone((state) => state.profile);
+  const [pinAsk, setPinAsk] = useState<PinAsk>(null);
   const updateAlertNote = useLone((state) => state.updateAlertNote);
   const [reason, setReason] = useState("");
   const [sent, setSent] = useState(dutyNote);
@@ -317,15 +412,19 @@ function SendSheet({
         <ActionButton
           tone="ghost"
           disabled={!reason}
-          onClick={() => {
-            useLone.getState().falseAlarm(fresh.id, reason);
-            void standDownBoard();
-            onClose();
-          }}
+          onClick={() =>
+            guarded(profile, setPinAsk, (duress) => {
+              useLone.getState().falseAlarm(fresh.id, reason);
+              if (duress) void pushDuress(fresh.site);
+              else void standDownBoard();
+              onClose();
+            })
+          }
         >
           Log false alarm
         </ActionButton>
       </div>
+      <PinSheet ask={pinAsk} onCancel={() => setPinAsk(null)} />
     </div>
   );
 }

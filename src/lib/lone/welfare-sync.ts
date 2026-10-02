@@ -59,7 +59,7 @@ export function startWelfareSync(): () => void {
         if (item.status === "running") register(item);
         continue;
       }
-      if (!item.onServer) continue;
+      if (!item.onServer || item.duress) continue;
       if (old.status === "running" && item.status === "checked_in") update(item, null);
       else if (item.status === "running" && old.expiresAt !== item.expiresAt) update(item, item.expiresAt);
     }

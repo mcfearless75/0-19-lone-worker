@@ -58,3 +58,33 @@ export async function standDownBoard(): Promise<void> {
     },
   }).catch(() => undefined);
 }
+
+/**
+ * Duress: the worker entered the duress PIN. Nothing changes on the phone;
+ * the board goes red and every contact is told not to phone them.
+ */
+export async function pushDuress(site: string): Promise<void> {
+  const state = useLone.getState();
+  const fix = state.lastFix;
+  const job = state.jobs.find((entry) => entry.status === "active");
+  const lat = fix?.lat ?? job?.lat ?? null;
+  const lng = fix?.lng ?? job?.lng ?? null;
+  const phones = [state.profile.whatsappNumber, state.profile.alertPhones ?? ""].filter(Boolean).join(",");
+  await raiseBoardAlert({
+    data: {
+      team: normalizeTeamCode(state.profile.teamCode ?? ""),
+      device: deviceId(),
+      name: state.profile.workerName,
+      job: site || job?.site || "",
+      lat,
+      lng,
+      accuracy: fix?.accuracy ?? null,
+      kind: "red",
+      note: "DURESS CODE ENTERED. The worker may be under threat and has been made to say they are safe. Do NOT phone them. Send help to the location.",
+      phones,
+      emails: state.profile.email,
+      org: state.profile.organisation ?? "",
+      where: mapsHref(lat, lng) ?? (job?.address || "No location"),
+    },
+  }).catch(() => undefined);
+}

@@ -62,8 +62,40 @@ export function LoneGate({ children }: { children: ReactNode }) {
         .alerts.filter((alert) => alert.status === "open")
         .map((alert) => alert.id),
     );
+    // Nudge the worker before the timer ends: once at the warn time, once
+    // more at 2 minutes. A gentle buzz on screen; a notification if the app
+    // is in the background. Extending the timer resets both.
+    const nudged = new Set<string>();
+    const nudge = () => {
+      const s = useLone.getState();
+      const job = s.jobs.find((entry) => entry.status === "active");
+      const running = job ? s.welfare.find((w) => w.jobId === job.id && w.status === "running") : null;
+      if (!running) return;
+      const left = new Date(running.expiresAt).getTime() - Date.now();
+      const stages: Array<[string, number, number[]]> = [
+        ["warn", s.profile.warnMinutes * 60_000, [150, 80, 150]],
+        ["final", 2 * 60_000, [300, 100, 300, 100, 300]],
+      ];
+      for (const [stage, threshold, pattern] of stages) {
+        const key = `${running.id}:${running.expiresAt}:${stage}`;
+        if (left > threshold || left <= 0 || nudged.has(key)) continue;
+        nudged.add(key);
+        navigator.vibrate?.(pattern);
+        if (document.hidden && Notification.permission === "granted") {
+          try {
+            new Notification(stage === "final" ? "2 minutes left. Still OK?" : "Timer ending soon. Still OK?", {
+              body: `${job?.site || "Your visit"}: tap I'm safe or +15 min, or the team is alerted.`,
+              tag: `nudge-${running.id}`,
+            });
+          } catch {
+            /* notification blocked */
+          }
+        }
+      }
+    };
     const id = window.setInterval(() => {
       useLone.getState().sweep();
+      nudge();
       const open = useLone.getState().alerts.filter((alert) => alert.status === "open");
       for (const alert of open) {
         if (seen.has(alert.id) || alert.sample) continue;
