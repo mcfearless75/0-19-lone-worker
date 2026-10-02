@@ -139,6 +139,8 @@ export async function gatherEvidence(sql: Sql, alertId: string): Promise<{ pack:
       .filter((n) => distanceM(row.lat!, row.lng!, n.lat, n.lng) <= 150)
       .map((n) => ({ level: n.level, note: n.note, author: n.author, createdAt: iso(n.created_at)! }));
   }
+  const phones = row.phones ? row.phones.split(",").filter(Boolean) : [];
+  const emails = row.emails ? row.emails.split(",").filter(Boolean) : [];
   const pack: EvidencePack = {
     alert: {
       id: row.id,
@@ -156,8 +158,8 @@ export async function gatherEvidence(sql: Sql, alertId: string): Promise<{ pack:
       resolvedAt: iso(row.resolved_at),
       outcome: row.outcome,
       duress: row.duress,
-      whatsapp: { status: row.whatsapp_status, count: row.whatsapp_count, total: row.phones ? row.phones.split(",").length : 0 },
-      email: { status: row.email_status, count: row.email_count, total: row.emails ? row.emails.split(",").length : 0 },
+      whatsapp: { status: row.whatsapp_status, count: row.whatsapp_count, total: phones.length, to: phones },
+      email: { status: row.email_status, count: row.email_count, total: emails.length, to: emails },
     },
     positions: positions.map((p) => ({ lat: p.lat, lng: p.lng, accuracy: p.accuracy, at: iso(p.at)! })),
     notes: notes.map((n) => ({ at: iso(n.created_at)!, note: n.note, hasAudio: n.has_audio })),
@@ -214,3 +216,4 @@ export async function emailEvidencePack(sql: Sql, alertId: string): Promise<numb
   if (count > 0) await sql`update alerts set pack_sent_at = now() where id = ${alertId}`.catch(() => undefined);
   return count;
 }
+

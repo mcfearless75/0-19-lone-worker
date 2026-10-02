@@ -17,8 +17,8 @@ export type EvidencePack = {
     resolvedAt: string | null;
     outcome: string;
     duress: boolean;
-    whatsapp: { status: string; count: number; total: number };
-    email: { status: string; count: number; total: number };
+    whatsapp: { status: string; count: number; total: number; to: string[] };
+    email: { status: string; count: number; total: number; to: string[] };
   };
   positions: Array<{ lat: number; lng: number; accuracy: number | null; at: string }>;
   notes: Array<{ at: string; note: string; hasAudio: boolean }>;
@@ -65,13 +65,15 @@ export function evidenceLines(p: EvidencePack): PdfLine[] {
 
   h("Who was told");
   L.push({ text: `WhatsApp: ${describeSend(a.whatsapp)}` });
+  for (const n of a.whatsapp.to) L.push({ text: `- ${n}` });
   L.push({ text: `Email: ${describeSend(a.email)}` });
+  for (const e of a.email.to) L.push({ text: `- ${e}` });
 
   if (p.visit) {
     h("Visit record");
     L.push({ text: `Site: ${p.visit.site || "—"}   Address: ${p.visit.address || "—"}` });
     L.push({ text: `Started ${ukTime(p.visit.startedAt)} · Arrived ${ukTime(p.visit.arrivedAt)} · Due ${ukTime(p.visit.dueAt)}` });
-    L.push({ text: `Checked in safe ${ukTime(p.visit.checkedInAt)} · Ended ${ukTime(p.visit.endedAt)}` });
+    L.push({ text: `${p.visit.checkedInAt ? `Checked in safe ${ukTime(p.visit.checkedInAt)}` : "No check-in recorded"} · ${p.visit.endedAt ? `Ended ${ukTime(p.visit.endedAt)}` : "Not ended"}` });
   }
 
   h("Timeline");
