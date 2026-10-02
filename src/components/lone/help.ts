@@ -33,6 +33,13 @@ export const help = {
     "This is the log kept on this phone: alerts, jobs and amber notes, newest first.",
     "Other people cannot see this page. To see everyone at once, use the Board.",
     "Acknowledge marks an alert as seen. Resolve closes it with a note of what happened.",
+    "Evidence pack on an alert opens a full record of it: timeline, who was told, location trail and address notes, ready to save as PDF for an incident report, HR or the police.",
+  ],
+  evidence: [
+    "A record of one alert, built from the system's own data: what happened and when, who was told and whether it got through, where the worker was while the alert was open, their amber notes beforehand, and what the team had recorded about the address.",
+    "Save as PDF / print uses your phone or computer's print dialogue. Email sends the PDF to the alert emails that were set when the alert was raised.",
+    "When a worker stands an alert down, the pack is emailed to the alert emails automatically.",
+    "Only the phone that raised the alert, or someone on the same board code, can open a pack.",
   ],
   board: [
     "The Board shows everyone on your team: where they are, whether they are travelling, on a visit (with the due-back time), checked in safe, or overdue, plus any open alert.",

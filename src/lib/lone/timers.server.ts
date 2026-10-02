@@ -1,6 +1,8 @@
 import type { Sql } from "@/lib/db";
+import type { RaiseBody } from "./board";
 import { notifyEveryone } from "./notify.server";
 import { recordAlertAtAddress } from "./address-notes.server";
+import { closeAlertRecord, openAlertRecord } from "./evidence.server";
 
 type DueRow = {
   id: string;
@@ -46,7 +48,7 @@ export async function sweepWelfareTimers(sql: Sql): Promise<number> {
         `;
       }
       await recordAlertAtAddress(sql, { team: row.team, name: row.name, job: row.job, kind: "timer", lat: row.lat, lng: row.lng });
-      const result = await notifyEveryone(sql, {
+      const raise: RaiseBody = {
         team: row.team,
         device: row.device,
         name: row.name,
@@ -54,13 +56,17 @@ export async function sweepWelfareTimers(sql: Sql): Promise<number> {
         lat: row.lat,
         lng: row.lng,
         accuracy: row.accuracy,
-        kind: "timer",
+        kind: "timer" as const,
         note,
         phones: row.phones ? row.phones.split(",") : [],
         emails: row.emails ? row.emails.split(",") : [],
         org: row.org,
         where,
-      });
+        alertId: row.id,
+      };
+      await openAlertRecord(sql, raise);
+      const result = await notifyEveryone(sql, raise);
+      await closeAlertRecord(sql, row.id, result);
       console.log(`[welfare] timer ${row.id} fired for ${row.name}: whatsapp ${result.whatsapp}, email ${result.email}`);
     } catch (err) {
       console.error(`[welfare] timer ${row.id} fired but notifying failed:`, String(err));

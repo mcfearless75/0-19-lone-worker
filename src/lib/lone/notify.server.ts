@@ -292,6 +292,17 @@ export async function sendTeamNote(sql: Sql, phones: string[], text: string): Pr
   return results.filter((r) => r.status === "fulfilled").length;
 }
 
+/** An email with file attachments ({ filename, content: base64 }). Returns how many addresses accepted it. */
+export async function sendEmailWithFiles(
+  emails: string[],
+  subject: string,
+  text: string,
+  files: Array<{ filename: string; content: string }>,
+): Promise<number> {
+  const r = await sendEmails(emails, { subject, text }, files);
+  return r.count;
+}
+
 /** A plain email to several addresses (used for the test message). Returns how many were accepted. */
 export async function sendPlainEmail(emails: string[], subject: string, text: string): Promise<number> {
   const r = await sendEmails(emails, { subject, text });
@@ -324,10 +335,10 @@ async function recentNotes(sql: Sql, device: string): Promise<StoredNote[]> {
 export async function notifyEveryone(
   sql: Sql,
   data: RaiseBody,
-): Promise<Pick<RaiseResult, "whatsapp" | "sentTo" | "email" | "emailedTo">> {
+): Promise<Pick<RaiseResult, "whatsapp" | "sentTo" | "email" | "emailedTo"> & { gpsPostcode: string }> {
   if (await overLimit(sql, data.device, clientIp())) {
     console.error(`[alert] rate limit hit for device ${data.device}`);
-    return { whatsapp: "failed", sentTo: 0, email: "failed", emailedTo: 0 };
+    return { whatsapp: "failed", sentTo: 0, email: "failed", emailedTo: 0, gpsPostcode: "" };
   }
   const detail = [data.job, data.note].filter(Boolean).join(". ") || "No further detail";
   // Official postcode for the live GPS fix. Capped at 1.5 s: an alert never waits longer.
@@ -357,5 +368,5 @@ export async function notifyEveryone(
     `[alert] ${data.kind}: whatsapp ${wa.status} ${wa.count}/${data.phones.length}` +
       ` via ${twilioConnected() ? "twilio" : "meta"}, email ${mail.status} ${mail.count}/${data.emails.length}`,
   );
-  return { whatsapp: wa.status, sentTo: wa.count, email: mail.status, emailedTo: mail.count };
+  return { whatsapp: wa.status, sentTo: wa.count, email: mail.status, emailedTo: mail.count, gpsPostcode: gpsPostcode ?? "" };
 }

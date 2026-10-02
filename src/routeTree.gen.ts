@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BoardRouteImport } from './routes/board'
 import { Route as DeskRouteImport } from './routes/desk'
+import { Route as EvidenceRouteImport } from './routes/evidence'
 import { Route as SettingsRouteImport } from './routes/settings'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const DeskRoute = DeskRouteImport.update({
   path: '/desk',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EvidenceRoute = EvidenceRouteImport.update({
+  id: '/evidence',
+  path: '/evidence',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/board': typeof BoardRoute
   '/desk': typeof DeskRoute
+  '/evidence': typeof EvidenceRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/board': typeof BoardRoute
   '/desk': typeof DeskRoute
+  '/evidence': typeof EvidenceRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/board': typeof BoardRoute
   '/desk': typeof DeskRoute
+  '/evidence': typeof EvidenceRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/board' | '/desk' | '/settings'
+  fullPaths: '/' | '/board' | '/desk' | '/evidence' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/board' | '/desk' | '/settings'
-  id: '__root__' | '/' | '/board' | '/desk' | '/settings'
+  to: '/' | '/board' | '/desk' | '/evidence' | '/settings'
+  id: '__root__' | '/' | '/board' | '/desk' | '/evidence' | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BoardRoute: typeof BoardRoute
   DeskRoute: typeof DeskRoute
+  EvidenceRoute: typeof EvidenceRoute
   SettingsRoute: typeof SettingsRoute
 }
 
@@ -92,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DeskRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/evidence': {
+      id: '/evidence'
+      path: '/evidence'
+      fullPath: '/evidence'
+      preLoaderRoute: typeof EvidenceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -106,6 +123,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BoardRoute: BoardRoute,
   DeskRoute: DeskRoute,
+  EvidenceRoute: EvidenceRoute,
   SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport

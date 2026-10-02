@@ -4,7 +4,7 @@ import { mapsHref, type Alert } from "./model";
 import { useLone } from "./store";
 
 export async function pushAlert(
-  alert: Pick<Alert, "kind" | "note" | "site" | "address" | "lat" | "lng">,
+  alert: Pick<Alert, "id" | "welfareId" | "kind" | "note" | "site" | "address" | "lat" | "lng">,
 ): Promise<RaiseResult> {
   const state = useLone.getState();
   const fix = state.lastFix;
@@ -29,6 +29,7 @@ export async function pushAlert(
         emails: state.profile.email,
         org: state.profile.organisation ?? "",
         where: mapsHref(lat, lng) ?? (address || "No location"),
+        alertId: alert.kind === "timer" ? alert.welfareId : alert.id,
       },
     });
   } catch {
@@ -85,6 +86,7 @@ export async function pushDuress(site: string): Promise<void> {
       emails: state.profile.email,
       org: state.profile.organisation ?? "",
       where: mapsHref(lat, lng) ?? (job?.address || "No location"),
+      alertId: null,
     },
   }).catch(() => undefined);
 }

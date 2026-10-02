@@ -79,7 +79,14 @@ export const publishPresence = createServerFn({ method: "POST" })
         visit_started_at = excluded.visit_started_at,
         due_at = excluded.due_at,
         checked_in_at = excluded.checked_in_at
-    `;
+      returning alert_kind
+    `.then(async (rows) => {
+      // While an alert is open, every position report joins its location trail.
+      if (rows[0]?.alert_kind && data.lat != null && data.lng != null) {
+        const { recordAlertPosition } = await import("./evidence.server");
+        await recordAlertPosition(sql, data.device, data.lat, data.lng, data.accuracy);
+      }
+    });
     return { ok: true as const };
   });
 
@@ -108,10 +115,13 @@ export const raiseBoardAlert = createServerFn({ method: "POST" })
     }
     const { notifyEveryone } = await import("./notify.server");
     const { recordAlertAtAddress } = await import("./address-notes.server");
+    const { openAlertRecord, closeAlertRecord } = await import("./evidence.server");
     const sql = await getSql();
     await recordAlertAtAddress(sql, { team: data.team, name: data.name, job: data.job, kind: data.kind, lat: data.lat, lng: data.lng });
+    const alertId = await openAlertRecord(sql, data);
     const sent = await notifyEveryone(sql, data);
-    return { board, ...sent };
+    await closeAlertRecord(sql, alertId, sent);
+    return { board, alertId, ...sent };
   });
 
 export const clearBoardAlert = createServerFn({ method: "POST" })
@@ -124,6 +134,9 @@ export const clearBoardAlert = createServerFn({ method: "POST" })
       set alert_kind = '', alert_note = '', alert_at = null
       where team = ${data.team} and device = ${data.device}
     `;
+    // Close the server record and email the evidence pack to the alert emails.
+    const { standDownAlerts } = await import("./evidence.server");
+    await standDownAlerts(sql, data.device, "Stood down by the worker");
     return { ok: true as const };
   });
 

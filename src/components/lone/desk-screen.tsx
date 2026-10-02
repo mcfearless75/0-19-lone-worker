@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { help } from "@/components/lone/help";
 import { ActionButton, NavLink, StatusPill, TopBar, inputClass } from "@/components/lone/chrome";
 import { loadClip } from "@/lib/lone/audio";
@@ -238,6 +239,15 @@ function AlertCard({ alert }: { alert: Alert }) {
         <p className="mt-2 text-sm text-faint">No map pin</p>
       )}
       {alert.resolverNote ? <p className="mt-2 text-sm text-muted">Desk: {alert.resolverNote}</p> : null}
+      {!alert.sample ? (
+        <Link
+          to="/evidence"
+          search={{ alert: alert.kind === "timer" && alert.welfareId ? alert.welfareId : alert.id }}
+          className="mt-2 block h-11 text-sm text-blue underline"
+        >
+          Evidence pack
+        </Link>
+      ) : null}
       {!closed ? (
         <div className="mt-3 grid gap-2">
           {channels.length > 0 ? (

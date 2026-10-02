@@ -100,6 +100,8 @@ export type RaiseBody = PublishBody & {
   emails: string[];
   org: string;
   where: string;
+  /** The phone's id for this alert, so the server record matches the Desk. */
+  alertId: string | null;
 };
 
 export type RaiseResult = {
@@ -108,6 +110,8 @@ export type RaiseResult = {
   sentTo: number;
   email?: "sent" | "not-connected" | "failed" | "no-addresses";
   emailedTo?: number;
+  /** Server id of the alert record (evidence pack). */
+  alertId?: string;
 };
 
 /** Most people one alert reaches on each channel. */
@@ -145,6 +149,7 @@ export function parseRaise(input: unknown): RaiseBody {
     phones,
     emails,
     org: clip(raw.org, 60),
+    alertId: /^[0-9a-f-]{36}$/i.test(String(raw.alertId ?? "")) ? String(raw.alertId) : null,
     where: clip(raw.where, 200) || "No location",
   };
 }
