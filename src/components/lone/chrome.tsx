@@ -326,7 +326,7 @@ export function TextField({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm text-muted">{label}</span>
+      {label ? <span className="mb-1.5 block text-sm text-muted">{label}</span> : null}
       <input
         className={`${inputClass} h-12`}
         value={value}

@@ -42,12 +42,9 @@ export const help = {
     "To come off the Board yourself, tap Leave this board under the code. To tidy someone else's grey pin, tap Remove from board; a live person or an open alert can't be removed.",
   ],
   routes: [
-    "This is where your alerts go. Set it once and test it.",
-    "Duty mobiles: up to 8 numbers that get a WhatsApp the moment you raise an alert. Each person must have joined the WhatsApp service first (ask your manager for the join message).",
-    "Alert emails: up to 8 addresses, separated by commas. Each one gets an email at the same moment, with any voice notes attached.",
-    "WhatsApp group link only opens the group on your phone. It cannot post into the group by itself. The duty mobiles are what actually gets messaged.",
-    "Safe PIN and duress PIN: optional. The safe PIN stops anyone else standing your alert down. The duress PIN behaves exactly like the safe PIN on screen, but raises a red alert telling the team not to phone you and to send help.",
-    "WhatsApp on check-in: off by default, because the Board already shows every check-in and a message per visit soon gets ignored. Turn it on if your team wants one.",
-    "Discreet screen: after an alert, the phone shows a plain screen so nobody nearby can see that an alert went out.",
+    "This is where your alerts go. Set it once, press Send a test to everyone, and check they all got it.",
+    "Every setting has its own ? button next to its name. Tap it for what that setting does.",
+    "Duty mobiles get a WhatsApp (or a text if WhatsApp fails) and alert emails get an email, all within seconds of an alert. Up to 8 of each.",
+    "WhatsApp groups: apps are not allowed to post into a WhatsApp group, so there is no group setting. Each duty mobile is messaged directly instead, which also reaches people who are not in a group.",
   ],
 } as const;

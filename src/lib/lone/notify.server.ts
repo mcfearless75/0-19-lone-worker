@@ -292,6 +292,12 @@ export async function sendTeamNote(sql: Sql, phones: string[], text: string): Pr
   return results.filter((r) => r.status === "fulfilled").length;
 }
 
+/** A plain email to several addresses (used for the test message). Returns how many were accepted. */
+export async function sendPlainEmail(emails: string[], subject: string, text: string): Promise<number> {
+  const r = await sendEmails(emails, { subject, text });
+  return r.count;
+}
+
 type StoredNote = { note: string; at: string; audio: string | null; mime: string };
 
 /** This worker's amber notes from the last 12 hours (newest 3). Never blocks an alert. */
