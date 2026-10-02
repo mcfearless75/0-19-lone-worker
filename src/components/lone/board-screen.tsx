@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { help } from "@/components/lone/help";
 import { ActionButton, NavLink, StatusPill, TextField, TopBar } from "@/components/lone/chrome";
 import { ageLabel, deviceId, freshCode, isLive, normalizeTeamCode, validTeamCode, type BoardPerson } from "@/lib/lone/board";
-import { leaveBoard, publishPresence, readBoard, readVisits } from "@/lib/lone/board-api";
+import { leaveBoard, publishPresence, readBoard, readVisits, removeStalePin } from "@/lib/lone/board-api";
 import { currentVisit } from "@/lib/lone/visit-sync";
 import { visitLine, type VisitRecord } from "@/lib/lone/visits";
 import { mapsHref } from "@/lib/lone/model";
@@ -63,6 +63,19 @@ export function BoardScreen() {
     };
   }, [code, joined]);
 
+  const remove = (person: BoardPerson) => {
+    if (!window.confirm(`Remove ${person.name} from the board? They were last seen ${ageLabel(person.seenAt, now)}.`)) return;
+    void removeStalePin({ data: { team: code, device: person.device } })
+      .then((result) => {
+        if (!result.removed) {
+          setProblem(`${person.name} is live again or has an open alert, so the pin stays.`);
+          return;
+        }
+        setPeople((current) => current.filter((entry) => entry.device !== person.device));
+      })
+      .catch(() => setProblem("The board could not be reached."));
+  };
+
   const stop = () => {
     const current = normalizeTeamCode(useLone.getState().profile.teamCode ?? "");
     if (validTeamCode(current)) {
@@ -85,7 +98,7 @@ export function BoardScreen() {
       <p className="text-sm leading-relaxed text-muted">
         Same code on every phone. A pin is live while that person has the app open. If their phone
         locks they go grey with when they were last seen, and drop off after 12 hours or when they
-        tap Stop sharing. A red alert stays here regardless. This is not a trail.
+        tap Leave this board. A red alert stays here regardless. This is not a trail.
       </p>
 
       {joined ? (
@@ -95,8 +108,12 @@ export function BoardScreen() {
             <p className="mt-1 font-mono text-3xl tracking-widest text-blue">{code}</p>
             <p className="mt-2 text-sm text-muted">Anyone with this code can see these pins.</p>
             <button type="button" className="mt-3 h-11 text-sm text-muted underline" onClick={stop}>
-              Stop sharing
+              Leave this board
             </button>
+            <p className="text-xs text-muted">
+              Takes you off everyone's Board now and forgets the code on this phone. Alerts still go to your
+              duty mobiles and emails.
+            </p>
           </section>
           {problem ? <p className="text-sm text-alert">{problem}</p> : null}
           {people.some((person) => person.device === self && person.name === "Unnamed") ? (
@@ -166,6 +183,15 @@ export function BoardScreen() {
                     ) : (
                       <p className="mt-2 text-sm text-muted">No location yet. Allow location on that phone.</p>
                     )}
+                    {!live && !trouble && person.device !== self ? (
+                      <button
+                        type="button"
+                        className="mt-2 block h-11 text-sm text-muted underline"
+                        onClick={() => remove(person)}
+                      >
+                        Remove from board
+                      </button>
+                    ) : null}
                   </li>
                 );
               })}

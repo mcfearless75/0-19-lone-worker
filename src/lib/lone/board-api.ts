@@ -162,6 +162,33 @@ export const leaveBoard = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
+/**
+ * Take a quiet pin off the board. Anyone with the code may do it, but only to
+ * a phone that has not reported for 3+ minutes and has no open alert: a live
+ * worker or an alert can never be removed by someone else.
+ */
+export const removeStalePin = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => {
+    const raw = (input ?? {}) as { team?: string; device?: string };
+    const team = normalizeTeamCode(String(raw.team ?? ""));
+    if (!validTeamCode(team)) throw new Error("Enter a board code of 4 to 8 letters or numbers.");
+    const device = String(raw.device ?? "");
+    if (!/^[0-9a-f-]{36}$/i.test(device)) throw new Error("That pin could not be identified.");
+    return { team, device };
+  })
+  .handler(async ({ data }) => {
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql<{ device: string }>`
+      delete from presence
+      where team = ${data.team} and device = ${data.device}
+        and seen_at < now() - interval '3 minutes'
+        and alert_kind = ''
+      returning device
+    `;
+    return { removed: rows.length > 0 };
+  });
+
 type VisitRow = {
   id: string;
   device: string;

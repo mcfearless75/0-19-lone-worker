@@ -35,6 +35,7 @@ export const help = {
     "Below the pins is every visit from the last 24 hours, so a supervisor can see who went where and whether they checked in.",
     "Everyone on the team types the same board code (4 to 8 letters or numbers). Anyone with the code can see the pins, so keep it to your team.",
     "A pin is live while that person has the app open and updates every 45 seconds. If their phone locks, the pin stays, greyed out, with when they were last seen. People drop off the board after 12 hours.",
+    "To come off the Board yourself, tap Leave this board under the code. To tidy someone else's grey pin, tap Remove from board; a live person or an open alert can't be removed.",
   ],
   routes: [
     "This is where your alerts go. Set it once and test it.",
