@@ -7,6 +7,7 @@ import { pushAlert } from "@/lib/lone/raise";
 import { migrateLoneStorage, useLone } from "@/lib/lone/store";
 import { startWelfareSync } from "@/lib/lone/welfare-sync";
 import { currentVisit, startVisitSync } from "@/lib/lone/visit-sync";
+import { hasArrived } from "@/lib/lone/geo";
 
 export function LoneGate({ children }: { children: ReactNode }) {
   const hydrated = useLone((state) => state.hydrated);
@@ -164,12 +165,22 @@ export function LoneGate({ children }: { children: ReactNode }) {
     if (!hydrated || !navigator.geolocation) return;
     const watch = navigator.geolocation.watchPosition(
       (pos) => {
-        useLone.getState().setFix({
+        const fix = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           accuracy: Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null,
           at: new Date().toISOString(),
-        });
+        };
+        const state = useLone.getState();
+        state.setFix(fix);
+        // Auto-arrive: a job waiting for arrival, with a pinned address, and
+        // the phone now within 100 m of it on a decent fix. Only while the app
+        // is open (the screen stays awake during a job); Arrived still works.
+        const job = state.jobs.find((entry) => entry.status === "active");
+        if (job && job.arrivedAt === null && job.lat != null && job.lng != null && hasArrived(fix, { lat: job.lat, lng: job.lng })) {
+          state.arrive(job.id);
+          navigator.vibrate?.([120, 60, 120]);
+        }
       },
       () => undefined,
       { enableHighAccuracy: true, maximumAge: 15000, timeout: 12000 },

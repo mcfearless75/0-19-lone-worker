@@ -107,7 +107,10 @@ export const raiseBoardAlert = createServerFn({ method: "POST" })
       board = true;
     }
     const { notifyEveryone } = await import("./notify.server");
-    const sent = await notifyEveryone(await getSql(), data);
+    const { recordAlertAtAddress } = await import("./address-notes.server");
+    const sql = await getSql();
+    await recordAlertAtAddress(sql, { team: data.team, name: data.name, job: data.job, kind: data.kind, lat: data.lat, lng: data.lng });
+    const sent = await notifyEveryone(sql, data);
     return { board, ...sent };
   });
 

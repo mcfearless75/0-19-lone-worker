@@ -18,6 +18,8 @@ export const help = {
   startJob: [
     "Site: the place name, e.g. Riverside Surgery.",
     "Address: type the street or the postcode. A green tick means the postcode is real and the job is pinned there. A red warning means the postcode does not exist, so check it.",
+    "Known about this address: once the address is pinned, you see what your team has recorded there in the last year: previous alerts (added automatically) and notes like 'large dog' or 'key safe by the side door'. You can add your own during the visit.",
+    "Arrival is detected automatically when the phone comes within 100 m of the pinned address with the app open. Press Arrived if it hasn't noticed, or if there is no pin.",
     "Welfare timer: how long you expect to be. You get a warning before it ends. If it runs out before you press I'm safe or End job, the server sends a welfare alert to your duty mobiles and alert emails, even if this phone is locked, flat or out of signal.",
     "Note for the desk: anything a responder should know, like a code for the door or a dog on site.",
   ],

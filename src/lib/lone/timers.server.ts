@@ -1,5 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { notifyEveryone } from "./notify.server";
+import { recordAlertAtAddress } from "./address-notes.server";
 
 type DueRow = {
   id: string;
@@ -44,6 +45,7 @@ export async function sweepWelfareTimers(sql: Sql): Promise<number> {
             alert_kind = 'timer', alert_note = excluded.alert_note, alert_at = now()
         `;
       }
+      await recordAlertAtAddress(sql, { team: row.team, name: row.name, job: row.job, kind: "timer", lat: row.lat, lng: row.lng });
       const result = await notifyEveryone(sql, {
         team: row.team,
         device: row.device,

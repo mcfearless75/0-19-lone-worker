@@ -16,9 +16,147 @@ import {
 import { deviceId, normalizeTeamCode, raisedLabel, validTeamCode } from "@/lib/lone/board";
 import { pushAlert, pushDuress, standDownBoard } from "@/lib/lone/raise";
 import { classifyPin, pinsConfigured } from "@/lib/lone/pin";
+import { addAddressNote, readAddressNotes } from "@/lib/lone/address-notes-api";
+import { levelLabel, worstLevel, type AddressNote, type NoteLevel } from "@/lib/lone/address-notes";
+import { deviceId as thisDevice } from "@/lib/lone/board";
 import { useLone } from "@/lib/lone/store";
 
 type PinAsk = { onDone: (duress: boolean) => void } | null;
+
+/**
+ * What the team already knows about an address: previous alerts here and
+ * notes other workers left (dog, hostile partner, dead-zone, key safe…).
+ * Shown when an address is picked and on the job card, with an add form.
+ */
+function AddressNotesPanel({ pin, address, compact = false }: { pin: { lat: number; lng: number } | null; address: string; compact?: boolean }) {
+  const teamCode = useLone((state) => normalizeTeamCode(state.profile.teamCode ?? ""));
+  const workerName = useLone((state) => state.profile.workerName);
+  const [notes, setNotes] = useState<AddressNote[] | null>(null);
+  const [open, setOpen] = useState(!compact);
+  const [adding, setAdding] = useState(false);
+  const [level, setLevel] = useState<NoteLevel>("caution");
+  const [text, setText] = useState("");
+  const [problem, setProblem] = useState("");
+  const joined = validTeamCode(teamCode);
+  const key = pin ? `${pin.lat.toFixed(4)},${pin.lng.toFixed(4)}` : "";
+
+  useEffect(() => {
+    if (!pin || !joined) {
+      setNotes(null);
+      return;
+    }
+    let live = true;
+    void readAddressNotes({ data: { team: teamCode, lat: pin.lat, lng: pin.lng } })
+      .then((rows) => {
+        if (live) setNotes(rows);
+      })
+      .catch(() => {
+        if (live) setNotes([]);
+      });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, teamCode, joined]);
+
+  if (!pin) return null;
+  if (!joined) {
+    return <p className="mt-2 text-sm text-muted">Join a board code to see what the team knows about this address.</p>;
+  }
+  const worst = notes ? worstLevel(notes) : null;
+  const tone = worst === "danger" ? "border-alert" : worst === "caution" ? "border-amber" : "border-border";
+  const headline =
+    notes == null
+      ? "Checking what the team knows about this address…"
+      : notes.length === 0
+        ? "Nothing recorded about this address."
+        : `${notes.length} ${notes.length === 1 ? "note" : "notes"} about this address${worst === "danger" ? " · includes a previous alert or danger" : ""}`;
+
+  const save = () => {
+    setProblem("");
+    void addAddressNote({
+      data: { team: teamCode, device: thisDevice(), author: workerName, address, lat: pin.lat, lng: pin.lng, level, note: text },
+    })
+      .then(() => readAddressNotes({ data: { team: teamCode, lat: pin.lat, lng: pin.lng } }))
+      .then((rows) => {
+        setNotes(rows);
+        setText("");
+        setAdding(false);
+      })
+      .catch((err: unknown) => setProblem(err instanceof Error ? err.message : "Could not save the note."));
+  };
+
+  return (
+    <section className={`mt-3 rounded-lg border ${tone} bg-surface p-3`}>
+      <button type="button" className="flex w-full items-center justify-between text-left" onClick={() => setOpen((o) => !o)}>
+        <span className={`text-sm font-bold ${worst === "danger" ? "text-alert" : worst === "caution" ? "text-amber" : "text-fg"}`}>
+          {worst === "danger" ? "⚠ " : ""}
+          {headline}
+        </span>
+        <span className="text-sm text-muted">{open ? "Hide" : "Show"}</span>
+      </button>
+      {open ? (
+        <>
+          {notes && notes.length > 0 ? (
+            <ul className="mt-2 grid gap-2">
+              {notes.map((n) => (
+                <li key={n.id} className="text-sm">
+                  <span
+                    className={`mr-2 rounded px-1.5 py-0.5 text-xs font-bold ${
+                      n.level === "danger" ? "bg-alert text-white" : n.level === "caution" ? "bg-amber text-amber-ink" : "bg-border text-fg"
+                    }`}
+                  >
+                    {levelLabel(n.level)}
+                  </span>
+                  <span className="text-fg">{n.note}</span>
+                  <span className="block text-xs text-muted">
+                    {n.author} · {new Date(n.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                    {n.distanceM > 30 ? ` · ${n.distanceM} m away` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {adding ? (
+            <div className="mt-3">
+              <div className="grid grid-cols-3 gap-2">
+                {(["info", "caution", "danger"] as NoteLevel[]).map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => setLevel(l)}
+                    className={`h-11 rounded-lg border text-sm ${level === l ? "border-fg text-fg" : "border-border text-muted"}`}
+                  >
+                    {levelLabel(l)}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                className={`${inputClass} mt-2 min-h-20 py-2`}
+                value={text}
+                placeholder="Large dog in the yard. Partner hostile last visit. Key safe by the side door."
+                onChange={(event) => setText(event.target.value)}
+              />
+              {problem ? <p className="mt-1 text-sm text-alert">{problem}</p> : null}
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <ActionButton tone="ghost" onClick={() => setAdding(false)}>
+                  Cancel
+                </ActionButton>
+                <ActionButton disabled={!text.trim()} onClick={save}>
+                  Save for the team
+                </ActionButton>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="mt-2 h-11 text-sm text-blue underline" onClick={() => setAdding(true)}>
+              Add a note about this address
+            </button>
+          )}
+        </>
+      ) : null}
+    </section>
+  );
+}
 
 /**
  * Asks for the safe PIN before a stand-down or check-in. The duress PIN is
@@ -250,6 +388,11 @@ export function FieldScreen() {
           <p className="text-sm text-muted">
             {[job.address, job.client].filter(Boolean).join(" · ") || "No address"}
           </p>
+          <AddressNotesPanel
+            pin={job.lat != null && job.lng != null ? { lat: job.lat, lng: job.lng } : null}
+            address={job.address}
+            compact
+          />
           {job.arrivedAt === null ? (
             <p className="mt-3 text-sm text-muted">
               Travelling. Press Arrived when you get there
@@ -531,6 +674,7 @@ function StartJob({ onClose, onStarted }: { onClose: () => void; onStarted: () =
         {checked ? (
           <p className="mt-2 text-sm text-ok">✓ {checked} is a real postcode. The job is pinned there.</p>
         ) : null}
+        {pin && hits.length === 0 ? <AddressNotesPanel pin={pin} address={address} /> : null}
         {badPostcode ? (
           <p className="mt-2 text-sm text-alert">
             {badPostcode} is not a real postcode. Check it before you start, so help goes to the right place.
@@ -602,7 +746,7 @@ function StartJob({ onClose, onStarted }: { onClose: () => void; onStarted: () =
               onClick={() => setOnArrival(true)}
               className={`h-11 rounded-lg border text-sm ${onArrival ? "border-fg text-fg" : "border-border text-muted"}`}
             >
-              Timer starts when I arrive
+              Timer starts when I arrive (auto-detected)
             </button>
             <button
               type="button"
