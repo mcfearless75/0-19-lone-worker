@@ -185,7 +185,7 @@ export function LoneGate({ children }: { children: ReactNode }) {
   if (!hydrated) {
     return (
       <div className="safe-pad grid min-h-dvh place-items-center bg-bg">
-        <BrandMark />
+        <NhsMark />
       </div>
     );
   }
@@ -193,15 +193,14 @@ export function LoneGate({ children }: { children: ReactNode }) {
   return children;
 }
 
-/** Bluewater "B" mark, as on bluewaterassociates.co.uk. */
-export function BrandMark({ className = "h-12" }: { className?: string }) {
+export function NhsMark({ className = "h-12" }: { className?: string }) {
   return (
     <img
-      src="/bluewater-mark.svg"
-      alt="Bluewater"
-      width={180}
-      height={180}
-      className={`${className} w-auto rounded-xl`}
+      src="/nhs-england.svg"
+      alt="NHS"
+      width={371}
+      height={150}
+      className={`${className} w-auto`}
     />
   );
 }
@@ -221,7 +220,7 @@ export function TopBar({
   const [showHelp, setShowHelp] = useState(false);
   return (
     <header className="flex flex-col gap-6">
-      <BrandMark />
+      <NhsMark />
       <div className="flex min-w-0 items-end justify-between gap-3">
         <div className="min-w-0">
           {mark ? <p className="truncate text-sm text-muted">{mark}</p> : null}

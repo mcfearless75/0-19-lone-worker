@@ -175,7 +175,7 @@ export function SettingsScreen() {
       <TextField
         label="Alert emails"
         value={profile.email}
-        placeholder="duty@bluewaterassociates.co.uk, manager@…"
+        placeholder="one@nhs.net, two@nhs.net"
         onChange={(email) => setProfile({ email })}
       />
       <p className="-mt-3 text-sm text-muted">
